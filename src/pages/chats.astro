@@ -46,13 +46,14 @@ import '../styles/global.css';
   </main>
 
   <script>
-    import { requireAuth, logout, api, logWarn, modal, ensureSession } from '../lib/api.js';
+    import { requireAuth, logout, api, logWarn, modal, ensureSession, offerPush } from '../lib/api.js';
     const me = requireAuth();
     if (me) {
-      ensureSession();
       document.getElementById('meName').textContent = me.name;
       // Chat guru = izin (publik), preselect murid yang sedang login.
-      document.getElementById('guruLink').href = `/izin?sid=${encodeURIComponent(me.student_id)}`;
+      document.getElementById('guruLink').href = `/izin?sid=${encodeURIComponent(me.student_id)}&name=${encodeURIComponent(me.name)}`;
+      // Satpam dulu, lalu tawarkan push notif (tiap login kalau belum aktif).
+      ensureSession().then(() => offerPush());
     }
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       const ok = await modal({ type:'warning', title:'Keluar dari akun?', message:'Kamu perlu login lagi untuk masuk.', confirmText:'Keluar', cancelText:'Batal' });

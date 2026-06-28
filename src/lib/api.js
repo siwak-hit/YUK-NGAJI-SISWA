@@ -272,6 +272,42 @@ export function requireAuth() {
   return getStudent();
 }
 
+// ===================== PUSH NOTIFICATION (client) =====================
+function urlBase64ToUint8Array(base64) {
+  const pad = '='.repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64); const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+async function subscribePush(reg) {
+  try {
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const r = await api('/api/student/push/key');
+      const key = r?.data?.key; if (!key) return;
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
+    }
+    await api('/api/student/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+  } catch (e) { logWarn('Gagal subscribe push', e.message); }
+}
+// Tawarkan push notif. Dipanggil tiap login: kalau sudah granted → pastikan ter-subscribe;
+// kalau belum (default) → tampilkan modal ajakan; kalau denied → diam.
+export async function offerPush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+    const reg = await navigator.serviceWorker.ready;
+    if (Notification.permission === 'granted') { await subscribePush(reg); return; }
+    if (Notification.permission === 'denied') return;
+    const ok = await modal({ type: 'info', title: 'Aktifkan Notifikasi?',
+      message: 'Biar kamu langsung tahu kalau Kak Aziz menyetujui izinmu, walau app sedang ditutup.',
+      confirmText: 'Aktifkan', cancelText: 'Nanti' });
+    if (!ok) return;
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') { await subscribePush(reg); toast('Notifikasi aktif 🔔', 'success'); }
+  } catch (e) { logWarn('offerPush gagal', e.message); }
+}
+
 // ===================== FETCH WRAPPER =====================
 // Auto Bearer + parse JSON + lempar error dgn pesan BE.
 // 401 hanya memicu logout kalau kita MEMANG sedang pegang token (sesi habis).

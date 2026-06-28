@@ -30,6 +30,9 @@ import '../styles/global.css';
         <div class="font-semibold text-[15px] leading-tight" style="color: var(--ink);">Asisten Sistem</div>
         <div class="text-[11px]" style="color: var(--ink-secondary);">Selalu siap membantu</div>
       </div>
+      <button id="btnClearChat" class="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--ink-tertiary);" title="Bersihkan chat">
+        <i class="fa-solid fa-broom text-base"></i>
+      </button>
       <button id="btnNotif" class="relative w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--accent);">
         <i class="fa-solid fa-bell text-lg"></i>
         <span id="notifDot" class="hidden absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center" style="background: var(--danger);">0</span>
@@ -92,10 +95,11 @@ import '../styles/global.css';
     <div id="notifOverlay" class="absolute inset-0" style="background: rgba(0,0,0,0.35);"></div>
     <div class="absolute top-0 right-0 h-full w-full flex flex-col" style="max-width:480px; margin:0 auto; left:0;">
       <div class="absolute top-0 right-0 h-full w-[86%] max-w-[360px] bg-[var(--canvas)] flex flex-col shadow-[var(--shadow-pop)]" id="notifSheet" style="transform:translateX(100%); transition:transform .26s cubic-bezier(.32,.72,0,1);">
-        <header class="appbar flex items-center gap-3 px-4 py-3.5 shrink-0">
+        <header class="appbar flex items-center gap-2 px-4 py-3.5 shrink-0">
           <i class="fa-solid fa-bell" style="color: var(--accent);"></i>
           <div class="flex-1 font-semibold" style="color: var(--ink);">Notifikasi</div>
-          <button id="notifClose" class="text-xl active:opacity-70" style="color: var(--ink-secondary);"><i class="fa-solid fa-xmark"></i></button>
+          <button id="notifClearAll" class="text-[12px] font-bold active:opacity-70" style="color: var(--danger);"><i class="fa-solid fa-trash"></i> Hapus semua</button>
+          <button id="notifClose" class="text-xl active:opacity-70 ml-1" style="color: var(--ink-secondary);"><i class="fa-solid fa-xmark"></i></button>
         </header>
         <div id="notifList" class="flex-1 overflow-y-auto no-scrollbar p-3 space-y-2.5"></div>
       </div>
@@ -273,11 +277,28 @@ import '../styles/global.css';
     const getSeen = () => { try { return new Set(JSON.parse(localStorage.getItem(NOTIF_SEEN_KEY) || '[]')); } catch { return new Set(); } };
     const markSeen = (key) => { const s = getSeen(); s.add(key); localStorage.setItem(NOTIF_SEEN_KEY, JSON.stringify([...s])); };
 
+    const notifKey = (n) => `${n.subject}|${n.week}|${n.until}`;
+    const NOTIF_DISMISS_KEY = 'siswa_notif_dismissed';
+    const getDismissed = () => { try { return new Set(JSON.parse(localStorage.getItem(NOTIF_DISMISS_KEY) || '[]')); } catch { return new Set(); } };
+    const setDismissed = (s) => localStorage.setItem(NOTIF_DISMISS_KEY, JSON.stringify([...s]));
+
+    // Kunci tombol "Kerjakan" di bubble & panel utk PR yg sudah dikerjakan.
+    function lockDoneTaskButtons(sub, wk) {
+      document.querySelectorAll(`[data-do][data-sub="${sub}"][data-week="${wk}"]`).forEach(btn => {
+        const span = document.createElement('div');
+        span.className = 'task-done';
+        span.innerHTML = '<i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Telah dikerjakan';
+        btn.replaceWith(span);
+      });
+    }
+
     function notifBubble(n) {
       const until = fmtDeadline(n.until);
-      const penalty = n.with_penalty
-        ? ` Tapi ada potongan nilai <b>${n.penalty_percent}%</b> ya.`
-        : ' Tanpa potongan nilai.';
+      const penalty = n.with_penalty ? ` Tapi ada potongan nilai <b>${n.penalty_percent}%</b> ya.` : ' Tanpa potongan nilai.';
+      const done = n.done || isDone(n.subject, n.week);
+      const action = done
+        ? `<div class="task-done"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Telah dikerjakan</div>`
+        : `<button data-do data-sub="${n.subject}" data-week="${n.week}" class="btn btn-primary w-full mt-2 !py-2 text-[13px]">Kerjakan Sekarang</button>`;
       const d = document.createElement('div');
       d.className = 'flex justify-start';
       const b = document.createElement('div');
@@ -287,16 +308,17 @@ import '../styles/global.css';
         <div class="text-[13.5px] leading-relaxed" style="color:var(--ink)">
           <i class="fa-solid fa-bell" style="color:#0066cc"></i> <b>Kak Aziz sudah memberi izin!</b><br>
           Kamu boleh mengerjakan <b>${SUBJ[n.subject]||n.subject} · Pertemuan ${n.week}</b>${until ? ` sampai <b>${until}</b>` : ''}.${penalty}
-        </div>
-        <button data-do class="btn btn-primary w-full mt-2 !py-2 text-[13px]">Kerjakan Sekarang</button>`;
-      b.querySelector('[data-do]').addEventListener('click', () => openDrawer(n.subject, n.week));
+        </div>${action}`;
+      const btn = b.querySelector('[data-do]');
+      if (btn) btn.addEventListener('click', () => openDrawer(n.subject, n.week));
       d.appendChild(b); thread.appendChild(d); scrollDown();
     }
 
     function setNotifDot(notifs) {
-      const active = (notifs || []).filter(n => !n.done && !n.expired).length;
+      const dis = getDismissed();
+      const active = (notifs || []).filter(n => !n.done && !n.expired && !isDone(n.subject, n.week) && !dis.has(notifKey(n))).length;
       const dot = document.getElementById('notifDot');
-      if (active > 0) { dot.textContent = active; dot.classList.remove('hidden'); }
+      if (active > 0) { dot.textContent = active > 99 ? '99+' : active; dot.classList.remove('hidden'); }
       else dot.classList.add('hidden');
     }
 
@@ -305,26 +327,24 @@ import '../styles/global.css';
         const res = await api('/api/student/notifications');
         const notifs = res.data || [];
         setNotifDot(notifs);
-        const seen = getSeen();
+        const seen = getSeen(); const dis = getDismissed();
         notifs.forEach(n => {
-          const key = `${n.subject}|${n.week}|${n.until}`;
-          if (seen.has(key)) return;
-          // Done/expired: tandai terlihat diam-diam (tak perlu diberitahu lagi).
-          if (n.done || n.expired) { markSeen(key); return; }
-          // Izin aktif & belum pernah ditampilkan → munculkan bubble info sekali.
-          notifBubble(n);
-          markSeen(key);
+          const key = notifKey(n);
+          if (seen.has(key) || dis.has(key)) return;
+          if (n.done || n.expired || isDone(n.subject, n.week)) { markSeen(key); return; }
+          notifBubble(n); markSeen(key);
         });
       } catch (ex) { logWarn('Gagal cek notifikasi', ex.message); }
     }
 
-    // ---- Panel notifikasi (bell di header) ----
+    // ---- Panel notifikasi (bell) — paginasi 10 + hapus semua ----
     function notifCardEl(n) {
       const until = fmtDeadline(n.until);
-      const c = n.done ? '#16a34a' : n.expired ? '#9ca3af' : '#0066cc';
-      const status = n.done ? '<span style="color:#16a34a"><i class="fa-solid fa-check"></i> Sudah dikerjakan</span>'
+      const done = n.done || isDone(n.subject, n.week);
+      const c = done ? '#16a34a' : n.expired ? '#9ca3af' : '#0066cc';
+      const status = done ? '<span style="color:#16a34a"><i class="fa-solid fa-circle-check"></i> Sudah dikerjakan</span>'
         : n.expired ? '<span style="color:var(--ink-tertiary)">Waktu tambahan habis</span>'
-        : `<button data-do class="btn btn-primary w-full mt-2 !py-2 text-[13px]">Kerjakan Sekarang</button>`;
+        : `<button data-do data-sub="${n.subject}" data-week="${n.week}" class="btn btn-primary w-full mt-2 !py-2 text-[13px]">Kerjakan Sekarang</button>`;
       const penalty = n.with_penalty ? `Ada potongan nilai ${n.penalty_percent}%` : 'Tanpa potongan nilai';
       const card = document.createElement('div');
       card.className = 'task-card p-3.5'; card.style.borderColor = c;
@@ -341,9 +361,26 @@ import '../styles/global.css';
 
     const notifPanel = document.getElementById('notifPanel');
     const notifSheet = document.getElementById('notifSheet');
+    const NOTIF_PAGE = 10;
+    let notifCache = [], notifShown = 0;
     function closeNotifPanel() {
       notifSheet.style.transform = 'translateX(100%)';
       setTimeout(() => notifPanel.classList.add('hidden'), 260);
+    }
+    function renderNotifPage(reset) {
+      const list = document.getElementById('notifList');
+      if (reset) { list.innerHTML = ''; notifShown = 0; }
+      const slice = notifCache.slice(notifShown, notifShown + NOTIF_PAGE);
+      slice.forEach(n => list.appendChild(notifCardEl(n)));
+      notifShown += slice.length;
+      const old = document.getElementById('notifMore'); if (old) old.remove();
+      if (notifShown < notifCache.length) {
+        const more = document.createElement('button');
+        more.id = 'notifMore'; more.className = 'btn btn-secondary w-full !py-2 text-[13px]';
+        more.textContent = `Muat lebih (${notifCache.length - notifShown} lagi)`;
+        more.addEventListener('click', () => renderNotifPage(false));
+        list.appendChild(more);
+      }
     }
     async function openNotifPanel() {
       notifPanel.classList.remove('hidden');
@@ -352,16 +389,29 @@ import '../styles/global.css';
       list.innerHTML = '<p class="caption text-center py-6">Memuat…</p>';
       try {
         const res = await api('/api/student/notifications');
-        const notifs = res.data || [];
-        setNotifDot(notifs);
-        if (!notifs.length) { list.innerHTML = '<p class="caption text-center py-8">Belum ada notifikasi.<br>Notif izin dari Kak Aziz akan muncul di sini.</p>'; return; }
-        list.innerHTML = '';
-        notifs.forEach(n => list.appendChild(notifCardEl(n)));
+        const all = res.data || [];
+        setNotifDot(all);
+        const dis = getDismissed();
+        notifCache = all.filter(n => !dis.has(notifKey(n)));
+        if (!notifCache.length) { list.innerHTML = '<p class="caption text-center py-8">Belum ada notifikasi.<br>Notif izin dari Kak Aziz akan muncul di sini.</p>'; return; }
+        renderNotifPage(true);
       } catch (ex) { logWarn('Gagal memuat notifikasi', ex.message); list.innerHTML = '<p class="caption text-center py-8">Gagal memuat. Coba lagi.</p>'; }
+    }
+    async function clearAllNotif() {
+      if (!notifCache.length) return;
+      const ok = await modal({ type:'warning', title:'Hapus semua notifikasi?', message:'Semua notifikasi akan dihapus dari daftar ini.', confirmText:'Hapus semua', cancelText:'Batal' });
+      if (!ok) return;
+      const dis = getDismissed();
+      notifCache.forEach(n => dis.add(notifKey(n)));
+      setDismissed(dis);
+      notifCache = [];
+      document.getElementById('notifList').innerHTML = '<p class="caption text-center py-8">Tidak ada notifikasi.</p>';
+      document.getElementById('notifDot').classList.add('hidden');
     }
     document.getElementById('btnNotif').addEventListener('click', openNotifPanel);
     document.getElementById('notifClose').addEventListener('click', closeNotifPanel);
     document.getElementById('notifOverlay').addEventListener('click', closeNotifPanel);
+    document.getElementById('notifClearAll').addEventListener('click', clearAllNotif);
 
     // ================= DRAWER SOAL =================
     const drawer = document.getElementById('drawer');
@@ -451,6 +501,9 @@ import '../styles/global.css';
       // Gate: kalau sebelumnya keluar di tengah pengerjaan → waktu hangus.
       // Boleh masuk lagi hanya kalau dapat izin TAMBAHAN WAKTU yang lebih baru & belum lewat.
       if (await isForfeited(subject, week)) { await offerExtraTime(subject, week); return; }
+
+      // Gate: kalau sudah LEWAT DEADLINE & belum dapat izin yang aktif → wajib minta izin dulu.
+      if (await lateGateBlocked(subject, week)) return;
 
       curSubject = subject; curWeek = week;
       isDoubleActive = false; isEvaluatingExtraLife = false; submitting = false; started = false; curIdx = 0;
@@ -552,6 +605,39 @@ import '../styles/global.css';
         logError('Gagal minta tambahan waktu', ex.message);
         modal({ type:'danger', title:'Gagal', message: ex.message || 'Coba lagi ya.', confirmText:'OK' });
       }
+    }
+
+    // ---- Gate TELAT DEADLINE: harus minta izin & tunggu disetujui guru ----
+    async function lateGateBlocked(subject, week) {
+      let detail = {};
+      try { const r = await api(`/api/onboarding/pr-locks-detail?subject=${subject}&week=${week}`); detail = r.data || {}; } catch {}
+      const now = new Date();
+      const deadline = detail.deadline_at ? new Date(detail.deadline_at) : null;
+      // Apakah punya izin AKTIF (extended_students dgn until > now)?
+      let ext = detail.extended_students;
+      try { while (typeof ext === 'string') ext = JSON.parse(ext); } catch { ext = []; }
+      if (!Array.isArray(ext)) ext = [];
+      const mine = ext.find(e => (typeof e === 'object' ? e.student_id : e) === me.student_id);
+      const validGrant = mine && mine.until && new Date(mine.until) > now;
+      const isLate = deadline && now > deadline;
+      if (!isLate || validGrant) return false; // boleh dikerjakan
+
+      // Sudah telat & belum ada izin aktif → cek status permohonan.
+      let reqStatus = null;
+      try { const r = await api(`/api/onboarding/pr-extension-mine?student_id=${me.student_id}&subject=${subject}&week=${week}`); reqStatus = r.data?.status || null; } catch {}
+      if (reqStatus === 'pending') {
+        await modal({ type:'info', title:'Menunggu persetujuan', message:'Permintaan izinmu sudah dikirim. Tunggu Kak Aziz menyetujui dulu ya — nanti ada notifikasi kalau sudah boleh dikerjakan.', confirmText:'OK' });
+        return true;
+      }
+      const reason = await modal({ type:'warning', title:'Sudah lewat deadline',
+        message:`Tugas <b>${SUBJ[subject]||subject} · Pertemuan ${week}</b> sudah lewat batas waktu, jadi belum bisa dikerjakan. Minta izin/perpanjangan ke Kak Aziz dulu ya. Tulis alasanmu:`,
+        input:true, placeholder:'Contoh: kemarin sakit / lupa', confirmText:'Minta Izin', cancelText:'Nanti' });
+      if (reason === null) return true;
+      try {
+        await api('/api/onboarding/pr-extension-request', { method:'POST', body:{ student_id: me.student_id, subject, week, reason, kind:'late' }});
+        await modal({ type:'info', title:'Izin terkirim', message:'Tunggu persetujuan Kak Aziz ya. Kalau sudah disetujui, kamu dapat notifikasi & langsung bisa mengerjakan.', confirmText:'OK' });
+      } catch (ex) { logError('Gagal minta izin', ex.message); modal({ type:'danger', title:'Gagal', message: ex.message || 'Coba lagi ya.', confirmText:'OK' }); }
+      return true;
     }
 
     function initSortables() {
@@ -698,6 +784,7 @@ import '../styles/global.css';
         localStorage.removeItem(forfeitKey(curSubject, curWeek)); // selesai → tak ada hangus
         addDone(curSubject, curWeek);                              // kunci tugas (anti ngerjain ulang)
         activeBrowserRerender?.();                                 // refresh kartu carousel → "Telah dikerjakan"
+        lockDoneTaskButtons(curSubject, curWeek);                  // kunci tombol di bubble & panel notif
 
         // Simpan selfie login sebagai bukti (image_url di consultations). Non-blocking.
         const selfie = getSelfieBlob();
@@ -793,7 +880,19 @@ import '../styles/global.css';
     }
 
     // Sapaan awal
-    botBubble(`Assalamualaikum, <b>${esc(me?.name||'')}</b>! 👋<br>Aku asisten yukNgaji. Mau cek apa hari ini? Pilih tombol di bawah ya.`);
+    function showGreeting() {
+      botBubble(`Assalamualaikum, <b>${esc(me?.name||'')}</b>! 👋<br>Aku asisten yukNgaji. Mau cek apa hari ini? Pilih tombol di bawah ya.`);
+    }
+    showGreeting();
+
+    // Bersihkan riwayat chat
+    document.getElementById('btnClearChat').addEventListener('click', async () => {
+      if (thread.children.length <= 1) return;
+      const ok = await modal({ type:'warning', title:'Bersihkan chat?', message:'Semua percakapan di layar ini akan dihapus.', confirmText:'Bersihkan', cancelText:'Batal' });
+      if (!ok) return;
+      thread.innerHTML = '';
+      showGreeting();
+    });
 
     // Notif izin: cek sekarang, lalu tiap 30 detik (push bubble kalau ada yang baru).
     pollNotifications();

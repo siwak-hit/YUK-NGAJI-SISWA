@@ -108,8 +108,9 @@ import '../styles/global.css';
         bubbleIn(`✅ <b>Izinmu sudah terkirim ke Kak Aziz.</b><br>Terima kasih, semoga lekas sehat & sukses ya 🤲`);
         footer.innerHTML = `<div class="caption text-center py-2">Izin terkirim. Kamu boleh tutup halaman ini.</div>`;
       } catch (ex) {
-        bubbleIn(`Maaf, gagal mengirim izin. Coba lagi ya.`);
-        renderReasons();
+        bubbleIn(esc(ex.message || 'Maaf, gagal mengirim izin. Coba lagi ya.'));
+        if (!/sudah mengajukan izin hari ini/i.test(ex.message || '')) renderReasons();
+        else footer.innerHTML = `<div class="caption text-center py-2">Kamu sudah izin hari ini. Sampai jumpa besok 👋</div>`;
       }
     }
 
@@ -128,7 +129,8 @@ import '../styles/global.css';
       const sid = params.get('sid');
       if (sid) {
         const found = allStudents.find(s => s.id === sid);
-        if (found) selectStudent({ id: found.id, name: found.name });
+        // Preselect langsung walau list belum/ tak memuat nama (pakai nama dari query).
+        selectStudent({ id: sid, name: found ? found.name : (params.get('name') || 'Kamu') });
       }
     })();
   </script>
