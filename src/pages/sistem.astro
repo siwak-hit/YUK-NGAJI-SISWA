@@ -24,11 +24,10 @@ import '../styles/global.css';
   <main class="phone">
     <!-- Header -->
     <header class="appbar flex items-center gap-3 px-3 py-2.5">
-      <a href="/chats" class="text-2xl px-1 leading-none active:opacity-70" style="color: var(--accent);"><i class="fa-solid fa-chevron-left"></i></a>
       <div class="w-9 h-9 rounded-full flex items-center justify-center" style="background: var(--accent-soft); color: var(--accent);"><i class="fa-solid fa-robot"></i></div>
       <div class="flex-1">
         <div class="font-semibold text-[15px] leading-tight" style="color: var(--ink);">Asisten Sistem</div>
-        <div class="text-[11px]" style="color: var(--ink-secondary);">Selalu siap membantu</div>
+        <div id="meNameSub" class="text-[11px]" style="color: var(--ink-secondary);">Selalu siap membantu</div>
       </div>
       <button id="btnClearChat" class="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--ink-tertiary);" title="Bersihkan chat">
         <i class="fa-solid fa-broom text-base"></i>
@@ -36,6 +35,9 @@ import '../styles/global.css';
       <button id="btnNotif" class="relative w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--accent);">
         <i class="fa-solid fa-bell text-lg"></i>
         <span id="notifDot" class="hidden absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center" style="background: var(--danger);">0</span>
+      </button>
+      <button id="btnLogout" class="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--ink-tertiary);" title="Keluar">
+        <i class="fa-solid fa-right-from-bracket text-base"></i>
       </button>
     </header>
 
@@ -107,9 +109,34 @@ import '../styles/global.css';
   </div>
 
   <script>
-    import { requireAuth, getStudent, api, toast, logError, logWarn, modal, showTyping, ensureSession, getSelfieBlob } from '../lib/api.js';
-    requireAuth(); ensureSession();
+    import { requireAuth, getStudent, api, toast, logError, logWarn, modal, showTyping, ensureSession, getSelfieBlob, logout, requireNotif, openIzinDrawer } from '../lib/api.js';
+
+    // Shortcut PWA (?act=pending|late): simpan dulu biar selamat kalau harus login/scan wajah.
+    const shortcutAct = new URLSearchParams(location.search).get('act');
+    if (shortcutAct) localStorage.setItem('siswa_shortcut_act', shortcutAct);
+
+    requireAuth();
     const me = getStudent();
+
+    // Satpam (skip di mode test) → WAJIB aktifkan notif → aksi dari push → auto-klik shortcut.
+    ensureSession().then(() => requireNotif()).then(() => { handlePushRoute(); consumeShortcut(); });
+
+    function consumeShortcut() {
+      const act = localStorage.getItem('siswa_shortcut_act');
+      if (!act) return;
+      localStorage.removeItem('siswa_shortcut_act');
+      if (location.search) history.replaceState({}, '', '/sistem');
+      const c = CHIPS.find(x => x.action === act);
+      if (c && !chipBusy) handleChip(act, c.label);
+    }
+    // Aksi dari klik push notif: ?do=subject:week (buka soal) / ?overdue=subject:week (buka izin telat).
+    async function handlePushRoute() {
+      const p = new URLSearchParams(location.search);
+      const doArg = p.get('do'); const overdueArg = p.get('overdue');
+      const parse = (v) => { const [s, w] = String(v).split(':'); return s && w ? { s, w } : null; };
+      if (doArg) { const t = parse(doArg); if (t) { history.replaceState({}, '', '/sistem'); openDrawer(t.s, t.w); } }
+      else if (overdueArg) { const t = parse(overdueArg); if (t) { history.replaceState({}, '', '/sistem'); openDrawer(t.s, t.w); } } // openDrawer sudah punya gate telat → auto modal izin
+    }
 
     const thread = document.getElementById('thread');
     const chips = document.getElementById('chips');
@@ -131,6 +158,18 @@ import '../styles/global.css';
       b.className = 'bubble bubble-in'; b.style.maxWidth = '100%';
       b.appendChild(node); d.appendChild(b);
       thread.appendChild(d); scrollDown();
+      return d;
+    }
+
+    // Response tugas terakhir — biar bisa "diabaikan" saat user minta lagi.
+    let lastResponseEl = null, lastResponseActive = false;
+    function ignoreLastResponse() {
+      if (lastResponseEl && lastResponseActive) {
+        const bub = lastResponseEl.querySelector('.bubble');
+        if (bub) bub.innerHTML = `<div class="caption" style="color:var(--ink-tertiary)"><i class="fa-solid fa-ban"></i> Kamu mengabaikan daftar tugas ini.</div>`;
+        lastResponseActive = false;
+        activeBrowserRerender = null;
+      }
     }
     function userBubble(text) {
       const d = document.createElement('div');
@@ -140,13 +179,18 @@ import '../styles/global.css';
     }
 
     const CHIPS = [
-      { label: 'Tugas yang belum', icon: 'fa-list-check', action: 'pending' },
-      { label: 'Telat deadline',   icon: 'fa-clock',      action: 'late' },
-      { label: 'Minta izin',       icon: 'fa-hand',       action: 'izin' },
+      { label: 'Cek tugas minggu ini', icon: 'fa-list-check', action: 'pending' },
+      { label: 'Cek tugasku yang telat', icon: 'fa-clock',    action: 'late' },
     ];
     chips.innerHTML = CHIPS.map(c =>
-      `<button data-action="${c.action}" class="chip" style="border-color:var(--accent);color:var(--accent-strong);"><i class="fa-solid ${c.icon}"></i> ${c.label}</button>`
-    ).join('');
+        `<button data-action="${c.action}" class="chip" style="border-color:var(--accent);color:var(--accent-strong);"><i class="fa-solid ${c.icon}"></i> ${c.label}</button>`
+      ).join('')
+      // Tombol Izin ke guru — border KUNING; buka drawer izin (bukan pindah halaman).
+      + `<button id="btnIzinNav" class="chip" style="border-color:var(--warning);color:var(--warning);"><i class="fa-solid fa-hand"></i> Izin ke Kak Aziz</button>`;
+    // (listener izin di bawah, setelah me siap)
+    document.getElementById('btnIzinNav')?.addEventListener('click', () => {
+      openIzinDrawer({ studentId: me?.student_id, name: me?.name });
+    });
     let chipBusy = false;
     const setChipsDisabled = (v) => chips.querySelectorAll('button').forEach(b => b.disabled = v);
     chips.addEventListener('click', e => {
@@ -155,90 +199,46 @@ import '../styles/global.css';
       handleChip(btn.dataset.action, btn.textContent.trim());
     });
 
-    // ---- Carousel tugas: 1 kartu, prev/next, filter mapel & minggu, border status ----
-    const STATUS_LABEL = { belum:'Belum dikerjakan', telat:'Telat deadline', izin:'Minta izin' };
-    const STATUS_ICON  = { belum:'fa-circle-check', telat:'fa-triangle-exclamation', izin:'fa-hand' };
-    const STATUS_COLOR = { belum:'#16a34a', telat:'#e5484d', izin:'#c97a17' };
-    function taskBrowser(allTasks, mode) {
-      let fSubject = 'all', fWeek = 'all', idx = 0;
-      const subjects = [...new Set(allTasks.map(t => t.subject))];
-      const weeks = [...new Set(allTasks.map(t => t.week))].sort((a,b)=>a-b);
+    // ---- Carousel tugas: 1 kartu (M{week} + mapel + alasan telat + aksi), prev/next ----
+    function taskBrowser(allTasks) {
+      const tasks = allTasks.slice().sort((a,b) => (a.week-b.week) || String(a.subject).localeCompare(b.subject));
+      let idx = 0;
       const wrap = document.createElement('div');
       wrap.style.width = '290px'; wrap.style.maxWidth = '100%';
-      const statusOf = (t) => mode==='izin' ? 'izin' : (t.late ? 'telat' : 'belum');
-      const filtered = () => allTasks.filter(t =>
-        (fSubject==='all'||t.subject===fSubject) && (fWeek==='all'||String(t.week)===String(fWeek)));
 
       function render() {
-        const list = filtered();
-        if (idx >= list.length) idx = Math.max(0, list.length-1);
-        const t = list[idx];
-        const subjOpts = `<option value="all">Semua Mapel</option>` + subjects.map(s=>`<option value="${s}" ${fSubject===s?'selected':''}>${SUBJ[s]||s}</option>`).join('');
-        const weekOpts = `<option value="all">Semua Minggu</option>` + weeks.map(w=>`<option value="${w}" ${String(fWeek)===String(w)?'selected':''}>Pertemuan ${w}</option>`).join('');
-
-        let cardHtml;
-        if (!t) {
-          cardHtml = `<div class="task-card p-5 text-center"><div class="text-4xl mb-2" style="color:var(--ink-tertiary)"><i class="fa-regular fa-face-smile"></i></div><div class="caption">Tidak ada tugas untuk filter ini.</div></div>`;
-        } else {
-          const st = statusOf(t); const dl = fmtDeadline(t.deadline_at);
-          const col = STATUS_COLOR[st];
-          const done = mode !== 'izin' && isDone(t.subject, t.week);
-          const actBtn = done
-            ? `<div class="task-done"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Telah dikerjakan</div>`
-            : mode==='izin'
-              ? `<button data-izin class="btn btn-warning w-full mt-3 !py-2.5 text-[14px]">Minta Izin</button>`
-              : `<button data-do class="btn btn-primary w-full mt-3 !py-2.5 text-[14px]">Kerjakan Sekarang</button>`;
-          cardHtml = `<div class="task-card status-${st} p-4">
-            <div class="flex items-center justify-between mb-2">
-              <span class="badge" style="background:${col}1a;color:${col};font-size:0.7rem;">${STATUS_LABEL[st]}</span>
-              <span class="text-[11px] font-bold" style="color:var(--ink-tertiary)">${idx+1}/${list.length}</span>
-            </div>
-            <div class="text-[18px] font-bold" style="color:var(--ink);letter-spacing:var(--tracking-tight);">${SUBJ[t.subject]||t.subject} · Pertemuan ${t.week}</div>
-            ${dl ? `<div class="text-[12px] mt-1" style="color:var(--ink-tertiary)">Deadline: ${dl}</div>` : ''}
-            ${actBtn}
-          </div>`;
-        }
-
+        if (idx >= tasks.length) idx = Math.max(0, tasks.length-1);
+        const t = tasks[idx];
+        const done = isDone(t.subject, t.week);
+        const late = t.late && !done;
+        const col = done ? '#16a34a' : late ? '#e5484d' : '#0066cc';
+        const actBtn = done
+          ? `<div class="task-done"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Telah dikerjakan</div>`
+          : `<button data-do class="btn ${late?'btn-warning':'btn-primary'} w-full mt-3 !py-2.5 text-[14px]">${late ? 'Minta Izin & Kerjakan' : 'Kerjakan Sekarang'}</button>`;
+        const lateNote = late
+          ? `<div class="text-[12px] mt-1.5 font-semibold" style="color:#e5484d"><i class="fa-solid fa-triangle-exclamation"></i> Lewat deadline — minta izin dulu ke Kak Aziz</div>` : '';
         wrap.innerHTML = `
-          <div class="flex gap-2 mb-3">
-            <div class="select-wrap"><span class="select-label">Mapel</span><select data-f="subject">${subjOpts}</select></div>
-            <div class="select-wrap"><span class="select-label">Minggu</span><select data-f="week">${weekOpts}</select></div>
+          <div class="task-card ${late?'status-telat':(done?'status-belum':'')} p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="badge" style="background:${col}1a;color:${col};font-size:0.78rem;font-weight:800;">M${t.week}</span>
+              <span class="text-[11px] font-bold" style="color:var(--ink-tertiary)">${idx+1}/${tasks.length}</span>
+            </div>
+            <div class="text-[19px] font-bold" style="color:var(--ink);letter-spacing:var(--tracking-tight);">${SUBJ[t.subject]||t.subject}</div>
+            ${lateNote}
+            ${actBtn}
           </div>
-          ${cardHtml}
           <div class="flex items-center justify-between mt-3">
             <button class="btn-icon" data-nav="prev" ${idx<=0?'disabled':''}><i class="fa-solid fa-chevron-left"></i></button>
-            <span class="text-[12px] font-bold" style="color:var(--ink-secondary)">${list.length} tugas</span>
-            <button class="btn-icon" data-nav="next" ${idx>=list.length-1?'disabled':''}><i class="fa-solid fa-chevron-right"></i></button>
+            <span class="text-[12px] font-bold" style="color:var(--ink-secondary)">${tasks.length} tugas</span>
+            <button class="btn-icon" data-nav="next" ${idx>=tasks.length-1?'disabled':''}><i class="fa-solid fa-chevron-right"></i></button>
           </div>`;
-
-        wrap.querySelector('[data-f="subject"]').addEventListener('change', e => { fSubject=e.target.value; idx=0; render(); });
-        wrap.querySelector('[data-f="week"]').addEventListener('change', e => { fWeek=e.target.value; idx=0; render(); });
         wrap.querySelector('[data-nav="prev"]').addEventListener('click', () => { if(idx>0){idx--;render();} });
-        wrap.querySelector('[data-nav="next"]').addEventListener('click', () => { if(idx<filtered().length-1){idx++;render();} });
-        const doBtn = wrap.querySelector('[data-do]'); if (doBtn) doBtn.addEventListener('click', () => openDrawer(t.subject, t.week));
-        const izinBtn = wrap.querySelector('[data-izin]'); if (izinBtn) izinBtn.addEventListener('click', () => requestIzin(t, izinBtn));
+        wrap.querySelector('[data-nav="next"]').addEventListener('click', () => { if(idx<tasks.length-1){idx++;render();} });
+        const doBtn = wrap.querySelector('[data-do]'); if (doBtn) doBtn.addEventListener('click', () => openDrawerBtn(doBtn, t.subject, t.week));
       }
       render();
-      activeBrowserRerender = render;  // biar bisa di-refresh saat tugas selesai
+      activeBrowserRerender = render;
       return wrap;
-    }
-
-    async function requestIzin(t, btn) {
-      const reason = await modal({ type:'warning', title:'Minta Izin / Perpanjangan',
-        message:`${SUBJ[t.subject]||t.subject} · Pertemuan ${t.week}. Tulis alasanmu untuk Kak Aziz:`,
-        input:true, placeholder:'Contoh: sakit, ada acara keluarga…', confirmText:'Kirim', cancelText:'Batal' });
-      if (reason === null) return;
-      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim…';
-      try {
-        await api('/api/onboarding/pr-extension-request', { method:'POST', body:{ student_id: me.student_id, subject:t.subject, week:t.week, reason, kind:'late' }});
-        toast('Permintaan izin terkirim ke Kak Aziz', 'success');
-        btn.innerHTML = '<i class="fa-solid fa-check"></i> Terkirim';
-        btn.classList.remove('btn-warning'); btn.style.cssText = 'background:var(--surface-sunken);color:var(--ink-secondary);';
-      } catch (ex) {
-        logError('Gagal minta izin', ex.message);
-        btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-paper-plane"></i> Minta Izin';
-        modal({ type:'danger', title:'Gagal mengirim', message: ex.message || 'Coba lagi ya.', confirmText:'OK' });
-      }
     }
 
     async function handleChip(action, label) {
@@ -250,19 +250,16 @@ import '../styles/global.css';
         await new Promise(r => setTimeout(r, 400)); // jeda kecil biar typing kebaca
         let tasks = res.data || [];
         if (action === 'late') tasks = tasks.filter(t => t.late);
-        // Sudah pernah minta izin (pending/granted) → jangan tampilkan lagi di menu izin.
-        if (action === 'izin') tasks = tasks.filter(t => (t.izin_status || 'none') === 'none');
+        ignoreLastResponse(); // response tugas sebelumnya (kalau ada) ditandai diabaikan
         if (!tasks.length) {
           botBubble(action==='late' ? 'Tidak ada tugas yang telat. Mantap! 🎉'
-            : action==='izin' ? 'Tidak ada tugas yang bisa dimintakan izin. Mungkin kamu sudah minta semua, cek menu Notifikasi ya. 🔔'
             : 'Semua tugas sudah kamu kerjakan. Keren! 🎉');
           return;
         }
-        const intro = action==='late' ? 'Ini tugas yang sudah lewat deadline:'
-          : action==='izin' ? 'Pilih tugas yang mau kamu mintakan izin:'
-          : 'Ini tugas yang belum kamu kerjakan:';
+        const intro = action==='late' ? 'Ini tugas yang sudah lewat deadline:' : 'Ini tugas yang belum kamu kerjakan:';
         botBubble(intro);
-        botNode(taskBrowser(tasks, action==='izin' ? 'izin' : 'do'));
+        lastResponseEl = botNode(taskBrowser(tasks));
+        lastResponseActive = true;
       } catch (ex) {
         logError('Gagal memuat data', ex.message);
         botBubble('Maaf, gagal memuat data. Coba lagi sebentar ya.');
@@ -292,25 +289,24 @@ import '../styles/global.css';
       });
     }
 
+    // Notif izin di chat = LABEL abu-abu. Tombol "Kerjakan" hanya muncul kalau daftar tugas
+    // (response terakhir) sudah tidak tampil; kalau masih tampil, cukup info saja.
     function notifBubble(n) {
-      const until = fmtDeadline(n.until);
-      const penalty = n.with_penalty ? ` Tapi ada potongan nilai <b>${n.penalty_percent}%</b> ya.` : ' Tanpa potongan nilai.';
       const done = n.done || isDone(n.subject, n.week);
+      const showBtn = !done && !lastResponseActive;
       const action = done
         ? `<div class="task-done"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Telah dikerjakan</div>`
-        : `<button data-do data-sub="${n.subject}" data-week="${n.week}" class="btn btn-primary w-full mt-2 !py-2 text-[13px]">Kerjakan Sekarang</button>`;
+        : (showBtn ? `<button data-do data-sub="${n.subject}" data-week="${n.week}" class="btn btn-primary w-full mt-2 !py-2 text-[13px]">Kerjakan Sekarang</button>` : '');
       const d = document.createElement('div');
       d.className = 'flex justify-start';
       const b = document.createElement('div');
-      b.className = 'bubble bubble-in';
-      b.style.borderLeft = '3px solid #0066cc';
+      b.className = 'bubble'; b.style.background = 'var(--surface-sunken)';
       b.innerHTML = `
-        <div class="text-[13.5px] leading-relaxed" style="color:var(--ink)">
-          <i class="fa-solid fa-bell" style="color:#0066cc"></i> <b>Kak Aziz sudah memberi izin!</b><br>
-          Kamu boleh mengerjakan <b>${SUBJ[n.subject]||n.subject} · Pertemuan ${n.week}</b>${until ? ` sampai <b>${until}</b>` : ''}.${penalty}
+        <div class="text-[13px] leading-relaxed" style="color:var(--ink-secondary)">
+          <i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Kamu sudah dapat izin untuk <b style="color:var(--ink)">${SUBJ[n.subject]||n.subject} · M${n.week}</b>. Silakan kerjakan tugasnya sekarang.
         </div>${action}`;
       const btn = b.querySelector('[data-do]');
-      if (btn) btn.addEventListener('click', () => openDrawer(n.subject, n.week));
+      if (btn) btn.addEventListener('click', () => openDrawerBtn(btn, n.subject, n.week));
       d.appendChild(b); thread.appendChild(d); scrollDown();
     }
 
@@ -490,6 +486,17 @@ import '../styles/global.css';
       const ph = block.querySelector('[data-ph]');
       if (ph) ph.style.display = block.querySelector('.blank-slot.filled') ? 'none' : '';
     };
+
+    // Bungkus openDrawer dgn spinner di tombol (cegah spam & kasih feedback saat cek deadline/izin).
+    async function openDrawerBtn(btn, subject, week) {
+      if (!btn) return openDrawer(subject, week);
+      if (btn.disabled) return;
+      const orig = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memuat…';
+      try { await openDrawer(subject, week); }
+      finally { btn.disabled = false; btn.innerHTML = orig; }
+    }
 
     async function openDrawer(subject, week) {
       // Gate: tugas yang sudah dikerjakan tidak bisa diulang.
@@ -878,6 +885,15 @@ import '../styles/global.css';
         botBubble(`✅ <b>${SUBJ[curSubject]||curSubject} Pertemuan ${curWeek}</b> berhasil dikumpulkan!<br>Nilai kamu: <b>${score}</b>. Barakallah 🤲`);
       });
     }
+
+    // Nama murid di subheader
+    if (me?.name) document.getElementById('meNameSub').textContent = `Halo, ${me.name}`;
+
+    // Logout
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      const ok = await modal({ type:'warning', title:'Keluar dari akun?', message:'Kamu perlu login lagi untuk masuk.', confirmText:'Keluar', cancelText:'Batal' });
+      if (ok) logout();
+    });
 
     // Sapaan awal
     function showGreeting() {

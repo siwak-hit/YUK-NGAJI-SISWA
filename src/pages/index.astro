@@ -31,7 +31,7 @@ import '../styles/global.css';
 
   <script>
     import { api, setSession, getToken, logError } from '../lib/api.js';
-    if (getToken()) location.href = '/chats';
+    if (getToken()) location.href = '/sistem';
 
     const form = document.getElementById('loginForm');
     const err = document.getElementById('err');
@@ -47,7 +47,7 @@ import '../styles/global.css';
       try {
         const res = await api('/api/student/login', { method: 'POST', body: { username, password } });
         setSession(res.data.token, { student_id: res.data.student_id, name: res.data.name });
-        location.href = '/chats';
+        location.href = '/sistem';
       } catch (ex) {
         // Error → inline message + console (TIDAK ke toast).
         logError('Login gagal', ex.message);

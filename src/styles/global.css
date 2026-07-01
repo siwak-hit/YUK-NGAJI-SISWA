@@ -278,3 +278,36 @@
   color: #fff; font-weight: 800; font-size: 0.8rem;
 }
 .satpam-msg { font-size: 0.8rem; font-weight: 700; margin-top: 0.85rem; min-height: 34px; }
+
+/* Bottom sheet (drawer izin) — naik dari bawah */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  opacity: 0; transition: opacity 0.25s ease;
+}
+.sheet-backdrop.show { opacity: 1; }
+.sheet {
+  width: 100%; max-width: 480px; background: var(--canvas);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: 0 -10px 44px rgba(0,0,0,0.20);
+  padding: 0.75rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.34s cubic-bezier(0.32,0.72,0,1);
+}
+.sheet-backdrop.show .sheet { transform: translateY(0); }
+.sheet-grab { width: 2.5rem; height: 0.3rem; border-radius: 999px; background: var(--hairline-strong); margin: 0 auto 1rem; }
+
+/* Notif WAJIB — blocking overlay */
+.notif-gate {
+  position: fixed; inset: 0; z-index: 160; display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem; background: rgba(10,20,30,0.92); backdrop-filter: blur(4px);
+}
+.notif-gate-box { width: 100%; max-width: 360px; text-align: center; color: #fff; }
+.notif-gate-ic {
+  width: 4rem; height: 4rem; margin: 0 auto 1rem; border-radius: var(--r-lg);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 1.75rem;
+  background: rgba(0,102,204,0.25); color: #6cb6ff;
+}
+.notif-gate-title { font-size: 1.15rem; font-weight: 800; }
+.notif-gate-sub { font-size: 0.85rem; color: rgba(255,255,255,0.75); margin: 0.5rem 0 1.25rem; line-height: 1.55; }

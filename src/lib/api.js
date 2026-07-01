@@ -108,7 +108,16 @@ export function showTyping(container) {
 // ===================== SESI + SATPAM (verifikasi wajah) =====================
 const SESSION_AT_KEY = 'siswa_session_at';
 const SELFIE_KEY = 'siswa_selfie';
-const SESSION_MS = 5 * 60 * 60 * 1000; // 5 jam
+const SESSION_MS = 24 * 60 * 60 * 1000; // 24 jam
+const TEST_MODE_KEY = 'siswa_test_mode';
+
+// Mode testing: buka app dgn ?test=1 → skip verifikasi wajah (satpam). ?test=0 mematikan.
+if (typeof location !== 'undefined') {
+  const t = new URLSearchParams(location.search).get('test');
+  if (t === '1') localStorage.setItem(TEST_MODE_KEY, '1');
+  else if (t === '0') localStorage.removeItem(TEST_MODE_KEY);
+}
+export const isTestMode = () => localStorage.getItem(TEST_MODE_KEY) === '1';
 
 export function getSelfie() { return localStorage.getItem(SELFIE_KEY); }
 function sessionValid() {
@@ -140,6 +149,7 @@ function loadScriptOnce(src) {
 // Foto verifikasi disimpan sbg selfie utk bukti saat mengumpulkan tugas (sesi 5 jam).
 export function ensureSession() {
   return new Promise((resolve) => {
+    if (isTestMode()) { localStorage.setItem(SESSION_AT_KEY, String(Date.now())); return resolve(); } // mode test: skip satpam
     if (sessionValid()) return resolve();
 
     const back = document.createElement('div');
@@ -306,6 +316,102 @@ export async function offerPush() {
     const perm = await Notification.requestPermission();
     if (perm === 'granted') { await subscribePush(reg); toast('Notifikasi aktif 🔔', 'success'); }
   } catch (e) { logWarn('offerPush gagal', e.message); }
+}
+
+// ===================== IZIN DRAWER (reusable) =====================
+const escHtml = (s) => (s == null ? '' : String(s)).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+// Bottom-sheet izin: pilih alasan → kirim ke /public/izin. onClose(success) dipanggil saat tutup.
+export function openIzinDrawer({ studentId, name, onClose } = {}) {
+  const REASONS = ['Sakit', 'Ada keperluan keluarga', 'Izin tidak masuk', 'Ada acara', 'Lainnya'];
+  const back = document.createElement('div');
+  back.className = 'sheet-backdrop';
+  back.innerHTML = `
+    <div class="sheet">
+      <div class="sheet-grab"></div>
+      <div class="flex items-center justify-between">
+        <div class="modal-title"><i class="fa-solid fa-hand" style="color:var(--warning)"></i> Izin ke Kak Aziz</div>
+        <button data-close class="text-xl active:opacity-70" style="color:var(--ink-tertiary)"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-msg" style="text-align:left">${name ? ('Untuk <b>' + escHtml(name) + '</b>. ') : ''}Pilih alasan izinmu:</div>
+      <div class="flex flex-wrap gap-2" style="margin-top:0.85rem">
+        ${REASONS.map(r => `<button class="chip" data-reason="${escHtml(r)}" style="border-color:var(--warning);color:var(--warning)">${escHtml(r)}</button>`).join('')}
+      </div>
+      <div data-state class="caption" style="margin-top:0.9rem;min-height:16px;"></div>
+    </div>`;
+  document.body.appendChild(back);
+  // paksa reflow biar transisi translateY jalan
+  void back.offsetWidth;
+  requestAnimationFrame(() => back.classList.add('show'));
+
+  const stateEl = back.querySelector('[data-state]');
+  const shut = (ok) => { back.classList.remove('show'); setTimeout(() => back.remove(), 340); if (onClose) onClose(!!ok); };
+  back.querySelector('[data-close]').addEventListener('click', () => shut(false));
+  back.addEventListener('click', (e) => { if (e.target === back) shut(false); });
+
+  back.querySelectorAll('[data-reason]').forEach(btn => btn.addEventListener('click', async () => {
+    let reason = btn.dataset.reason;
+    if (reason === 'Lainnya') {
+      const r = await modal({ type: 'warning', title: 'Alasan lain', input: true, placeholder: 'Tulis alasanmu', confirmText: 'Lanjut', cancelText: 'Batal' });
+      if (!r) return; reason = r;
+    }
+    back.querySelectorAll('[data-reason]').forEach(b => b.disabled = true);
+    stateEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim…';
+    try {
+      await api('/api/student/public/izin', { method: 'POST', body: { student_id: studentId, reason } });
+      stateEl.innerHTML = '<span style="color:#16a34a"><i class="fa-solid fa-circle-check"></i> Izin terkirim ke Kak Aziz. Terima kasih 🤲</span>';
+      toast('Izin terkirim ke Kak Aziz', 'success');
+      setTimeout(() => shut(true), 1200);
+    } catch (ex) {
+      logError('Gagal kirim izin', ex.message);
+      back.querySelectorAll('[data-reason]').forEach(b => b.disabled = false);
+      stateEl.innerHTML = `<span style="color:var(--danger)">${escHtml(ex.message || 'Gagal, coba lagi.')}</span>`;
+    }
+  }));
+}
+
+// ===================== NOTIF WAJIB (blocking gate) =====================
+// App tidak jalan sampai izin notifikasi diberikan. Skip di mode test / browser tak mendukung.
+export function requireNotif() {
+  return new Promise((resolve) => {
+    if (isTestMode()) return resolve();
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return resolve();
+    (async () => {
+      const reg = await navigator.serviceWorker.ready;
+      if (Notification.permission === 'granted') { await subscribePush(reg); return resolve(); }
+      const back = document.createElement('div');
+      back.className = 'notif-gate';
+      // mode: 'default' (belum diminta) | 'denied' (coba minta lagi) | 'blocked' (mentok → reload)
+      const render = (mode) => {
+        const sub = mode === 'default'
+          ? 'Notifikasi <b>wajib</b> aktif untuk memakai aplikasi ini (biar kamu tahu tugas baru & status izin). Ketuk tombol di bawah, lalu pilih <b>Izinkan</b>.'
+          : mode === 'denied'
+            ? 'Notifikasi masih nonaktif. Coba aktifkan lagi. Kalau pilihan izin tidak muncul, artinya diblokir browser — izinkan lewat pengaturan situs, lalu muat ulang.'
+            : 'Notifikasi diblokir browser. Buka <b>pengaturan situs</b> (ikon gembok di address bar) → izinkan <b>Notifikasi</b> → lalu muat ulang.';
+        const primaryLabel = mode === 'default' ? 'Aktifkan Notifikasi' : mode === 'denied' ? 'Coba Aktifkan Lagi' : 'Muat Ulang';
+        back.innerHTML = `
+          <div class="notif-gate-box">
+            <div class="notif-gate-ic"><i class="fa-solid fa-bell"></i></div>
+            <div class="notif-gate-title">Aktifkan Notifikasi</div>
+            <div class="notif-gate-sub">${sub}</div>
+            <button id="ngPrimary" class="btn btn-primary w-full mt-1">${primaryLabel}</button>
+            ${mode === 'denied' ? '<button id="ngReload" class="btn btn-secondary w-full mt-2">Muat Ulang Halaman</button>' : ''}
+          </div>`;
+        const attempt = async () => {
+          const perm = await Notification.requestPermission();
+          if (perm === 'granted') { await subscribePush(reg); back.remove(); resolve(); return; }
+          // Masih belum granted. Kalau tadi sudah 'denied' & tetap denied → mentok (reload only).
+          render(perm === 'denied' && mode === 'denied' ? 'blocked' : 'denied');
+        };
+        back.querySelector('#ngPrimary').addEventListener('click', () => {
+          if (mode === 'blocked') { location.reload(); return; }
+          attempt();
+        });
+        back.querySelector('#ngReload')?.addEventListener('click', () => location.reload());
+      };
+      render(Notification.permission === 'denied' ? 'denied' : 'default');
+      document.body.appendChild(back);
+    })();
+  });
 }
 
 // ===================== FETCH WRAPPER =====================

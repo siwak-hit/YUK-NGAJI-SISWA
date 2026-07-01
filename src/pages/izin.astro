@@ -14,7 +14,6 @@ import '../styles/global.css';
 <body>
   <main class="phone">
     <header class="appbar flex items-center gap-3 px-3 py-2.5">
-      <button id="backBtn" class="text-xl px-1 leading-none active:opacity-70 hidden" style="color: var(--accent);"><i class="fa-solid fa-chevron-left"></i></button>
       <div class="icon-chip" style="width:2.25rem;height:2.25rem;background:var(--warning-soft);color:var(--warning);"><i class="fa-solid fa-chalkboard-user"></i></div>
       <div class="flex-1">
         <div class="font-semibold text-[15px] leading-tight" style="color: var(--ink);">Izin ke Kak Aziz</div>
@@ -22,115 +21,72 @@ import '../styles/global.css';
       </div>
     </header>
 
-    <!-- STEP 1: cari nama -->
+    <!-- Cari nama -->
     <section id="stepSearch" class="flex-1 overflow-y-auto no-scrollbar p-4">
       <label class="ans-label">Cari namamu</label>
       <input id="q" type="text" autocomplete="off" placeholder="Ketik nama kamu…" class="field mt-1" />
       <div id="list" class="mt-3 space-y-2"></div>
     </section>
 
-    <!-- STEP 2: chat izin -->
-    <section id="stepIzin" class="flex-1 overflow-y-auto no-scrollbar px-3 py-4 space-y-2 hidden" style="background: var(--chat-bg);"></section>
-    <footer id="izinFooter" class="border-t border-[var(--hairline)] bg-[var(--canvas)] p-3 hidden"></footer>
+    <!-- Layar selesai (temporary → destroy) -->
+    <section id="stepDone" class="flex-1 hidden flex-col items-center justify-center text-center px-8">
+      <div class="w-20 h-20 rounded-[var(--r-xl)] flex items-center justify-center text-4xl mb-4" style="background:var(--accent-soft);color:#16a34a;"><i class="fa-solid fa-circle-check"></i></div>
+      <div class="text-xl font-bold" style="color:var(--ink);">Izin Terkirim</div>
+      <div class="caption mt-1.5 mb-6">Terima kasih, izinmu sudah sampai ke Kak Aziz. Kamu boleh menutup halaman ini.</div>
+      <button id="btnCloseTab" class="btn btn-primary !px-8">Tutup</button>
+    </section>
   </main>
 
   <script>
-    import { api } from '../lib/api.js';
+    import { api, openIzinDrawer, logError } from '../lib/api.js';
 
-    const esc = (s) => (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const esc = (s) => (s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
     const stepSearch = document.getElementById('stepSearch');
-    const stepIzin = document.getElementById('stepIzin');
-    const footer = document.getElementById('izinFooter');
-    const backBtn = document.getElementById('backBtn');
+    const stepDone = document.getElementById('stepDone');
     const listEl = document.getElementById('list');
     const qEl = document.getElementById('q');
-
-    const REASONS = ['Sakit', 'Ada keperluan keluarga', 'Izin tidak masuk', 'Ada acara', 'Lainnya'];
     let allStudents = [];
-    let selected = null;
 
-    function bubbleIn(html) {
-      const d = document.createElement('div'); d.className = 'flex justify-start';
-      d.innerHTML = `<div class="bubble bubble-in">${html}</div>`; stepIzin.appendChild(d); stepIzin.scrollTop = stepIzin.scrollHeight;
-    }
-    function bubbleOut(text) {
-      const d = document.createElement('div'); d.className = 'flex justify-end';
-      d.innerHTML = `<div class="bubble bubble-out text-[14px]">${esc(text)}</div>`; stepIzin.appendChild(d); stepIzin.scrollTop = stepIzin.scrollHeight;
+    const showSearch = () => { stepDone.classList.add('hidden'); stepDone.classList.remove('flex'); stepSearch.classList.remove('hidden'); };
+    const showDone = () => { stepSearch.classList.add('hidden'); stepDone.classList.remove('hidden'); stepDone.classList.add('flex'); };
+
+    function startIzin(student) {
+      stepSearch.classList.add('hidden');   // halaman kosong dulu, lalu drawer muncul
+      openIzinDrawer({
+        studentId: student.id, name: student.name,
+        onClose: (ok) => { if (ok) showDone(); else showSearch(); },
+      });
     }
 
     function renderList(items) {
-      if (!items.length) { listEl.innerHTML = `<p class="caption text-center py-4">Nama tidak ditemukan.</p>`; return; }
+      if (!items.length) { listEl.innerHTML = '<p class="caption text-center py-4">Nama tidak ditemukan.</p>'; return; }
       listEl.innerHTML = items.slice(0, 30).map(s =>
         `<button data-id="${s.id}" data-name="${esc(s.name)}" class="card card-interactive w-full text-left px-3.5 py-3 flex items-center gap-3">
           <span class="icon-chip" style="background:var(--accent-soft);color:var(--accent);"><i class="fa-solid fa-user"></i></span>
-          <span><span class="section-title block">${esc(s.name)}</span><span class="caption">${esc(s.grade||'')}</span></span>
+          <span><span class="section-title block">${esc(s.name)}</span><span class="caption">${esc(s.grade || '')}</span></span>
         </button>`).join('');
     }
 
     qEl.addEventListener('input', () => {
       const q = qEl.value.trim().toLowerCase();
       if (!q) { listEl.innerHTML = ''; return; }
-      renderList(allStudents.filter(s => (s.name||'').toLowerCase().includes(q)));
+      renderList(allStudents.filter(s => (s.name || '').toLowerCase().includes(q)));
     });
-
     listEl.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-id]'); if (!btn) return;
-      selectStudent({ id: btn.dataset.id, name: btn.dataset.name });
+      startIzin({ id: btn.dataset.id, name: btn.dataset.name });
     });
+    document.getElementById('btnCloseTab').addEventListener('click', () => { window.close(); location.href = 'about:blank'; });
 
-    function selectStudent(s) {
-      selected = s;
-      stepSearch.classList.add('hidden');
-      stepIzin.classList.remove('hidden');
-      footer.classList.remove('hidden');
-      backBtn.classList.remove('hidden');
-      stepIzin.innerHTML = '';
-      bubbleIn(`Assalamualaikum <b>${esc(s.name)}</b> 👋<br>Mau izin apa hari ini? Pilih alasannya di bawah ya.`);
-      renderReasons();
-    }
-
-    function renderReasons() {
-      footer.innerHTML = `<div class="ans-label mb-2">Pilih alasan izin</div>
-        <div class="flex flex-wrap gap-2">${REASONS.map(r => `<button data-reason="${esc(r)}" class="chip" style="border-color:var(--accent);color:var(--accent-strong);">${esc(r)}</button>`).join('')}</div>`;
-      footer.querySelectorAll('[data-reason]').forEach(b => b.addEventListener('click', () => pickReason(b.dataset.reason)));
-    }
-
-    async function pickReason(reason) {
-      let finalReason = reason;
-      if (reason === 'Lainnya') {
-        finalReason = prompt('Tulis alasan izinmu:') || '';
-        if (!finalReason.trim()) return;
-      }
-      bubbleOut(`Izin: ${finalReason}`);
-      footer.innerHTML = `<div class="caption text-center py-2"><i class="fa-solid fa-spinner fa-spin"></i> Mengirim…</div>`;
-      try {
-        await api('/api/student/public/izin', { method: 'POST', body: { student_id: selected.id, reason: finalReason } });
-        bubbleIn(`✅ <b>Izinmu sudah terkirim ke Kak Aziz.</b><br>Terima kasih, semoga lekas sehat & sukses ya 🤲`);
-        footer.innerHTML = `<div class="caption text-center py-2">Izin terkirim. Kamu boleh tutup halaman ini.</div>`;
-      } catch (ex) {
-        bubbleIn(esc(ex.message || 'Maaf, gagal mengirim izin. Coba lagi ya.'));
-        if (!/sudah mengajukan izin hari ini/i.test(ex.message || '')) renderReasons();
-        else footer.innerHTML = `<div class="caption text-center py-2">Kamu sudah izin hari ini. Sampai jumpa besok 👋</div>`;
-      }
-    }
-
-    backBtn.addEventListener('click', () => {
-      stepIzin.classList.add('hidden'); footer.classList.add('hidden'); backBtn.classList.add('hidden');
-      stepSearch.classList.remove('hidden');
-    });
-
-    // Muat daftar siswa + dukung preselect via ?sid=&name=
+    // Muat daftar siswa + preselect via ?sid=&name=
     (async () => {
-      try {
-        const res = await api('/api/student/public/students');
-        allStudents = res.data || [];
-      } catch (ex) { listEl.innerHTML = `<p class="caption text-center py-4">Gagal memuat data. Coba refresh.</p>`; }
-      const params = new URLSearchParams(location.search);
-      const sid = params.get('sid');
+      try { const res = await api('/api/student/public/students'); allStudents = res.data || []; }
+      catch (ex) { logError('Gagal memuat siswa', ex.message); listEl.innerHTML = '<p class="caption text-center py-4">Gagal memuat data. Coba refresh.</p>'; }
+      const p = new URLSearchParams(location.search);
+      const sid = p.get('sid');
       if (sid) {
         const found = allStudents.find(s => s.id === sid);
-        // Preselect langsung walau list belum/ tak memuat nama (pakai nama dari query).
-        selectStudent({ id: sid, name: found ? found.name : (params.get('name') || 'Kamu') });
+        startIzin({ id: sid, name: found ? found.name : (p.get('name') || 'Kamu') });
       }
     })();
   </script>

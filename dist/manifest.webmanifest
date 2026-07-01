@@ -10,5 +10,21 @@
   "theme_color": "#0066cc",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Cek tugas minggu ini",
+      "short_name": "Tugas",
+      "description": "Lihat tugas yang belum dikerjakan",
+      "url": "/sistem?act=pending",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Cek tugasku yang telat",
+      "short_name": "Telat",
+      "description": "Lihat tugas yang lewat deadline",
+      "url": "/sistem?act=late",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
   ]
 }
