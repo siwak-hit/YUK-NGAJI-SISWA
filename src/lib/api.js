@@ -323,7 +323,7 @@ const escHtml = (s) => (s == null ? '' : String(s)).replace(/[&<>]/g, c => ({ '&
 // Bottom-sheet izin: cek "sudah izin hari ini?" → kalau belum: pilih alasan → kirim.
 // Setelah izin (atau sudah izin) → tombol "Salin & Buka WhatsApp" utk tempel ke grup.
 export function openIzinDrawer({ studentId, name, onClose } = {}) {
-  const REASONS = ['Sakit', 'Ada keperluan keluarga', 'Izin tidak masuk', 'Ada acara', 'Lainnya'];
+  const REASONS = ['Sakit', 'Pergi (Mendesak)', 'Haid', 'Belajar', 'Lainnya'];
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const back = document.createElement('div');
   back.className = 'sheet-backdrop';
@@ -369,10 +369,13 @@ export function openIzinDrawer({ studentId, name, onClose } = {}) {
       <button data-wa class="btn w-full mt-3" style="background:#25D366;color:#fff;"><i class="fa-brands fa-whatsapp"></i> Salin &amp; Buka WhatsApp</button>
       <button data-close2 class="btn btn-secondary w-full mt-2">Tutup</button>`;
     body.querySelector('[data-close2]').addEventListener('click', shut);
-    body.querySelector('[data-wa]').addEventListener('click', async () => {
-      const ok = await copyText(waText(reason));
-      toast(ok ? 'Pesan disalin — tempel di grup WA ya' : 'Salin pesannya manual ya', ok ? 'success' : 'info');
-      setTimeout(() => { window.location.href = 'whatsapp://send'; }, 250);
+    body.querySelector('[data-wa]').addEventListener('click', () => {
+      const text = waText(reason);
+      // Copy fire-and-forget (jangan await → jaga user-gesture utk buka scheme di iOS).
+      copyText(text).then(ok => toast(ok ? 'Pesan disalin' : 'Salin manual ya', ok ? 'success' : 'info'));
+      // Buka WhatsApp LANGSUNG di dalam gesture (kalau ditunda pakai setTimeout, iOS blokir).
+      // Pakai scheme native + prefill teks (bukan wa.me) → tinggal pilih grup.
+      window.location.href = 'whatsapp://send?text=' + encodeURIComponent(text);
     });
   }
 
