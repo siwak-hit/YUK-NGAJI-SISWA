@@ -24,28 +24,49 @@ import '../styles/global.css';
   <main class="phone">
     <!-- Header -->
     <header class="appbar flex items-center gap-3 px-3 py-2.5">
-      <div class="w-9 h-9 rounded-full flex items-center justify-center" style="background: var(--accent-soft); color: var(--accent);"><i class="fa-solid fa-robot"></i></div>
-      <div class="flex-1">
-        <div class="font-semibold text-[15px] leading-tight" style="color: var(--ink);">Asisten Sistem</div>
-        <div id="meNameSub" class="text-[11px]" style="color: var(--ink-secondary);">Selalu siap membantu</div>
+      <div id="botAvatar" class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px]" style="background: var(--accent-soft); color: var(--accent);">KA</div>
+      <button id="botNameBtn" class="flex-1 text-left active:opacity-70 min-w-0 flex items-center gap-1.5">
+        <span id="botName" class="font-semibold text-[15px] truncate" style="color: var(--ink);">Kak Aziz</span>
+        <i class="fa-solid fa-pen text-[10px] shrink-0" style="color:var(--ink-tertiary)"></i>
+      </button>
+      <div class="relative shrink-0">
+        <button id="btnMenu" class="relative w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--ink-secondary);">
+          <i class="fa-solid fa-ellipsis-vertical text-lg"></i>
+          <span id="menuDot" class="hidden absolute top-2 right-2.5 w-2.5 h-2.5 rounded-full" style="background: var(--danger);"></span>
+        </button>
+        <div id="menuDropdown" class="hidden absolute right-0 top-11 z-40 w-56 rounded-[var(--r-lg)] overflow-hidden" style="background:var(--canvas); border:1px solid var(--divider-strong); box-shadow: var(--shadow-pop);">
+          <button data-menu="notif" class="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-[var(--surface-sunken)]">
+            <i class="fa-solid fa-bell w-4 text-center" style="color:var(--accent)"></i>
+            <span class="text-[14px] flex-1" style="color:var(--ink)">Notifikasi</span>
+            <span id="menuNotifCount" class="badge badge-info hidden">0</span>
+          </button>
+          <button data-menu="clear" class="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-[var(--surface-sunken)]" style="border-top:1px solid var(--divider)">
+            <i class="fa-solid fa-trash w-4 text-center" style="color:var(--ink-secondary)"></i>
+            <span class="text-[14px]" style="color:var(--ink)">Bersihkan chat</span>
+          </button>
+          <button data-menu="logout" class="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-[var(--surface-sunken)]" style="border-top:1px solid var(--divider)">
+            <i class="fa-solid fa-right-from-bracket w-4 text-center" style="color:var(--danger)"></i>
+            <span class="text-[14px]" style="color:var(--danger)">Keluar akun</span>
+          </button>
+        </div>
       </div>
-      <button id="btnClearChat" class="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--ink-tertiary);" title="Bersihkan chat">
-        <i class="fa-solid fa-broom text-base"></i>
-      </button>
-      <button id="btnNotif" class="relative w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--accent);">
-        <i class="fa-solid fa-bell text-lg"></i>
-        <span id="notifDot" class="hidden absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center" style="background: var(--danger);">0</span>
-      </button>
-      <button id="btnLogout" class="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition" style="color: var(--ink-tertiary);" title="Keluar">
-        <i class="fa-solid fa-right-from-bracket text-base"></i>
-      </button>
     </header>
 
     <!-- Thread -->
     <div id="thread" class="flex-1 overflow-y-auto no-scrollbar px-3 py-4 space-y-2" style="background: var(--chat-bg);"></div>
 
-    <!-- Quick replies -->
-    <footer class="border-t border-[var(--hairline)] bg-white p-3 flex flex-wrap gap-2" id="chips"></footer>
+    <!-- Bottom nav (mobile) -->
+    <footer class="bg-white flex shrink-0" style="border-top:1px solid var(--divider-strong);">
+      <button data-nav="pending" class="flex-1 flex flex-col items-center gap-1 py-2.5 active:bg-[var(--surface-sunken)] transition" style="color: var(--accent-strong);">
+        <i class="fa-solid fa-list-check text-lg"></i>
+        <span class="text-[11px] font-semibold">Cek tugas belum selesai</span>
+      </button>
+      <div style="width:1px;background:var(--divider-strong)"></div>
+      <button data-nav="izin" class="flex-1 flex flex-col items-center gap-1 py-2.5 active:bg-[var(--surface-sunken)] transition" style="color: var(--warning);">
+        <i class="fa-solid fa-hand text-lg"></i>
+        <span class="text-[11px] font-semibold">Minta izin ke Kak Aziz</span>
+      </button>
+    </footer>
   </main>
 
   <!-- ===== Drawer soal (full-screen) ===== -->
@@ -126,8 +147,7 @@ import '../styles/global.css';
       if (!act) return;
       localStorage.removeItem('siswa_shortcut_act');
       if (location.search) history.replaceState({}, '', '/sistem');
-      const c = CHIPS.find(x => x.action === act);
-      if (c && !chipBusy) handleChip(act, c.label);
+      if (!chipBusy) handleChip('pending'); // late sudah digabung ke "belum selesai"
     }
     // Aksi dari klik push notif: ?do=subject:week (buka soal) / ?overdue=subject:week (buka izin telat).
     async function handlePushRoute() {
@@ -139,7 +159,6 @@ import '../styles/global.css';
     }
 
     const thread = document.getElementById('thread');
-    const chips = document.getElementById('chips');
     const SUBJ = { tajwid:'Tajwid', fiqih:'Fiqih', tauhid:'Tauhid' };
     const esc = (s) => (s==null?'':String(s)).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     const fmtDeadline = (s) => s ? new Date(s).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : null;
@@ -161,15 +180,24 @@ import '../styles/global.css';
       return d;
     }
 
-    // Response tugas terakhir — biar bisa "diabaikan" saat user minta lagi.
-    let lastResponseEl = null, lastResponseActive = false;
+    // Tugas yang sudah dapat izin AKTIF (dari notifikasi) → kartu jadi "siap dikerjakan" (biru).
+    const grantedSet = new Set();
+
+    // Response tugas terakhir — biar bisa "diabaikan" / ditandai selesai.
+    let lastResponseEl = null, lastResponseActive = false, lastResponseTasks = null;
     function ignoreLastResponse() {
       if (lastResponseEl && lastResponseActive) {
         const bub = lastResponseEl.querySelector('.bubble');
         if (bub) bub.innerHTML = `<div class="caption" style="color:var(--ink-tertiary)"><i class="fa-solid fa-ban"></i> Kamu mengabaikan daftar tugas ini.</div>`;
-        lastResponseActive = false;
-        activeBrowserRerender = null;
+        lastResponseActive = false; activeBrowserRerender = null; lastResponseTasks = null;
       }
+    }
+    // Setelah tugas dikerjakan: kalau tugas itu bagian dari response terakhir → ganti jadi info "sudah mengerjakan".
+    function markResponseDone(sub, wk) {
+      if (!lastResponseEl || !lastResponseActive || !lastResponseTasks || !lastResponseTasks.has(doneKey(sub, wk))) return;
+      const bub = lastResponseEl.querySelector('.bubble');
+      if (bub) bub.innerHTML = `<div class="text-[13px]" style="color:var(--ink-secondary)"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Kamu sudah mengerjakan tugas <b style="color:var(--ink)">${SUBJ[sub]||sub} · Pertemuan ${wk}</b> ${doneWhen(sub, wk)}.</div>`;
+      lastResponseActive = false; activeBrowserRerender = null; lastResponseTasks = null;
     }
     function userBubble(text) {
       const d = document.createElement('div');
@@ -178,26 +206,12 @@ import '../styles/global.css';
       thread.appendChild(d); scrollDown();
     }
 
-    const CHIPS = [
-      { label: 'Cek tugas belum selesai', icon: 'fa-list-check', action: 'pending' },
-      { label: 'Cek tugasku yang telat', icon: 'fa-clock',    action: 'late' },
-    ];
-    chips.innerHTML = CHIPS.map(c =>
-        `<button data-action="${c.action}" class="chip" style="border-color:var(--accent);color:var(--accent-strong);"><i class="fa-solid ${c.icon}"></i> ${c.label}</button>`
-      ).join('')
-      // Tombol Izin ke guru — border KUNING; buka drawer izin (bukan pindah halaman).
-      + `<button id="btnIzinNav" class="chip" style="border-color:var(--warning);color:var(--warning);"><i class="fa-solid fa-hand"></i> Izin ke Kak Aziz</button>`;
-    // (listener izin di bawah, setelah me siap)
-    document.getElementById('btnIzinNav')?.addEventListener('click', () => {
-      openIzinDrawer({ studentId: me?.student_id, name: me?.name });
-    });
+    // Bottom nav: 2 tombol (cek tugas belum selesai + izin).
     let chipBusy = false;
-    const setChipsDisabled = (v) => chips.querySelectorAll('button').forEach(b => b.disabled = v);
-    chips.addEventListener('click', e => {
-      const btn = e.target.closest('button[data-action]'); if (!btn) return;
-      if (chipBusy) return;                    // cegah spam klik berkali-kali
-      handleChip(btn.dataset.action, btn.textContent.trim());
-    });
+    const navBtns = document.querySelectorAll('[data-nav]');
+    const setChipsDisabled = (v) => navBtns.forEach(b => { b.disabled = v; b.style.opacity = v ? '0.5' : ''; });
+    document.querySelector('[data-nav="pending"]').addEventListener('click', () => { if (!chipBusy) handleChip('pending'); });
+    document.querySelector('[data-nav="izin"]').addEventListener('click', () => openIzinDrawer({ studentId: me?.student_id, name: me?.name }));
 
     // ---- Carousel tugas: 1 kartu (M{week} + mapel + alasan telat + aksi), prev/next ----
     function taskBrowser(allTasks) {
@@ -210,7 +224,8 @@ import '../styles/global.css';
         if (idx >= tasks.length) idx = Math.max(0, tasks.length-1);
         const t = tasks[idx];
         const done = isDone(t.subject, t.week);
-        const late = t.late && !done;
+        // Kalau sudah dapat izin aktif → tidak dianggap "telat" lagi (siap dikerjakan, biru).
+        const late = t.late && !done && !grantedSet.has(doneKey(t.subject, t.week));
         const col = done ? '#16a34a' : late ? '#e5484d' : '#0066cc';
         const actBtn = done
           ? `<div class="task-done"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Telah dikerjakan</div>`
@@ -241,25 +256,26 @@ import '../styles/global.css';
       return wrap;
     }
 
-    async function handleChip(action, label) {
+    async function handleChip(action) {
       chipBusy = true; setChipsDisabled(true);
-      userBubble(label);
       const stopTyping = showTyping(thread);
       try {
         const res = await api('/api/student/tasks');
         await new Promise(r => setTimeout(r, 400)); // jeda kecil biar typing kebaca
-        let tasks = res.data || [];
-        if (action === 'late') tasks = tasks.filter(t => t.late);
+        const tasks = res.data || [];
         ignoreLastResponse(); // response tugas sebelumnya (kalau ada) ditandai diabaikan
-        if (!tasks.length) {
-          botBubble(action==='late' ? 'Tidak ada tugas yang telat. Mantap! 🎉'
-            : 'Semua tugas sudah kamu kerjakan. Keren! 🎉');
-          return;
-        }
-        const intro = action==='late' ? 'Ini tugas yang sudah lewat deadline:' : 'Ini tugas yang belum kamu kerjakan:';
-        botBubble(intro);
-        lastResponseEl = botNode(taskBrowser(tasks));
+        if (!tasks.length) { botBubble('Semua tugas sudah kamu kerjakan. Keren! 🎉'); return; }
+        // Gabung header + carousel dalam SATU container.
+        const wrap = document.createElement('div');
+        wrap.style.width = '290px'; wrap.style.maxWidth = '100%';
+        const h = document.createElement('div');
+        h.className = 'text-[13.5px] font-bold mb-2'; h.style.color = 'var(--ink)';
+        h.textContent = 'Tugasmu yang belum selesai:';
+        wrap.appendChild(h);
+        wrap.appendChild(taskBrowser(tasks));
+        lastResponseEl = botNode(wrap);
         lastResponseActive = true;
+        lastResponseTasks = new Set(tasks.map(t => doneKey(t.subject, t.week)));
       } catch (ex) {
         logError('Gagal memuat data', ex.message);
         botBubble('Maaf, gagal memuat data. Coba lagi sebentar ya.');
@@ -313,9 +329,10 @@ import '../styles/global.css';
     function setNotifDot(notifs) {
       const dis = getDismissed();
       const active = (notifs || []).filter(n => !n.done && !n.expired && !isDone(n.subject, n.week) && !dis.has(notifKey(n))).length;
-      const dot = document.getElementById('notifDot');
-      if (active > 0) { dot.textContent = active > 99 ? '99+' : active; dot.classList.remove('hidden'); }
-      else dot.classList.add('hidden');
+      const dot = document.getElementById('menuDot');
+      const cnt = document.getElementById('menuNotifCount');
+      if (active > 0) { dot.classList.remove('hidden'); cnt.textContent = active > 99 ? '99+' : active; cnt.classList.remove('hidden'); }
+      else { dot.classList.add('hidden'); cnt.classList.add('hidden'); }
     }
 
     async function pollNotifications() {
@@ -323,6 +340,10 @@ import '../styles/global.css';
         const res = await api('/api/student/notifications');
         const notifs = res.data || [];
         setNotifDot(notifs);
+        // Tugas yg punya izin aktif → kartu jadi biru "Kerjakan Sekarang".
+        let grantChanged = false;
+        notifs.forEach(n => { if (!n.done && !n.expired) { const gk = `${n.subject}|${n.week}`; if (!grantedSet.has(gk)) { grantedSet.add(gk); grantChanged = true; } } });
+        if (grantChanged) activeBrowserRerender?.();
         const seen = getSeen(); const dis = getDismissed();
         notifs.forEach(n => {
           const key = notifKey(n);
@@ -402,9 +423,8 @@ import '../styles/global.css';
       setDismissed(dis);
       notifCache = [];
       document.getElementById('notifList').innerHTML = '<p class="caption text-center py-8">Tidak ada notifikasi.</p>';
-      document.getElementById('notifDot').classList.add('hidden');
+      setNotifDot([]);
     }
-    document.getElementById('btnNotif').addEventListener('click', openNotifPanel);
     document.getElementById('notifClose').addEventListener('click', closeNotifPanel);
     document.getElementById('notifOverlay').addEventListener('click', closeNotifPanel);
     document.getElementById('notifClearAll').addEventListener('click', clearAllNotif);
@@ -422,9 +442,17 @@ import '../styles/global.css';
     let activeBrowserRerender = null;   // utk refresh kartu carousel setelah tugas selesai
     const forfeitKey = (sub, wk) => `siswa_forfeit_${sub}_${wk}`;
     const doneKey = (sub, wk) => `${sub}|${wk}`;
-    const getDone = () => { try { return new Set(JSON.parse(localStorage.getItem('siswa_done') || '[]')); } catch { return new Set(); } };
-    const addDone = (sub, wk) => { const s = getDone(); s.add(doneKey(sub, wk)); localStorage.setItem('siswa_done', JSON.stringify([...s])); };
-    const isDone = (sub, wk) => getDone().has(doneKey(sub, wk));
+    // map key→timestamp (backward-compat: kalau data lama berupa array, konversi).
+    const getDoneMap = () => { try { const p = JSON.parse(localStorage.getItem('siswa_done') || '{}'); if (Array.isArray(p)) { const m = {}; p.forEach(k => m[k] = Date.now()); return m; } return p || {}; } catch { return {}; } };
+    const addDone = (sub, wk) => { const m = getDoneMap(); m[doneKey(sub, wk)] = Date.now(); localStorage.setItem('siswa_done', JSON.stringify(m)); };
+    const isDone = (sub, wk) => getDoneMap()[doneKey(sub, wk)] != null;
+    const doneWhen = (sub, wk) => {
+      const ts = getDoneMap()[doneKey(sub, wk)]; if (!ts) return '';
+      const d = new Date(ts), now = new Date();
+      const dd = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+      if (dd === 0) return 'hari ini'; if (dd === 1) return 'kemarin';
+      return 'pada ' + d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' });
+    };
 
     const shuffle = (a) => { a = a.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
     const wrapArabic = (t) => t==null?'':String(t).replace(/\p{Script=Arabic}(?:[\p{Script=Arabic}ـ،؛؟\s]*\p{Script=Arabic})?/gu, m => `<span class="ar-text">${m}</span>`);
@@ -534,6 +562,7 @@ import '../styles/global.css';
         const s = sRes.data || {};
         inventory = { poin: s.poin||0, item_double_score: s.item_double_score||0, item_extra_life: s.item_extra_life||0 };
         document.getElementById('coinBal').textContent = inventory.poin;
+        document.getElementById('btnDouble').style.display = ''; // tampil lagi di lobby
         refreshDoubleBtn();
 
         if (!questions.length) {
@@ -560,6 +589,7 @@ import '../styles/global.css';
       if (!questions.length) return;
       document.getElementById('lobby').classList.add('hidden');
       document.getElementById('drawerFooter').classList.remove('hidden');
+      document.getElementById('btnDouble').style.display = 'none'; // Double Nilai hanya di lobby awal
       started = true;
       curIdx = 0; showSlide(0);
       startTimer();
@@ -688,29 +718,38 @@ import '../styles/global.css';
 
     document.getElementById('btnDouble').addEventListener('click', async () => {
       if (isDoubleActive) return;
-      const b = document.getElementById('btnDouble'); b.disabled = true;
+      const b = document.getElementById('btnDouble'); b.disabled = true; b.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses…';
       try {
         if (inventory.item_double_score <= 0) {
           const r = await api('/api/shop/buy', { method:'POST', body:{ student_id: me.student_id, item_type:'item_double_score' }});
-          inventory.poin = r.data.poin; inventory.item_double_score = (r.data.item_double_score ?? 1);
+          if (typeof r.data.poin === 'number') inventory.poin = r.data.poin;
+          inventory.item_double_score = (r.data.item_double_score ?? 1);
           document.getElementById('coinBal').textContent = inventory.poin;
         }
         isDoubleActive = true;
         toast('Double Nilai aktif! ✨', 'success');
-      } catch (ex) { logError('Gagal aktifkan Double Nilai', ex.message); }
+      } catch (ex) { logError('Gagal aktifkan Double Nilai', ex.message); modal({ type:'danger', title:'Gagal', message: ex.message || 'Coba lagi ya.', confirmText:'OK' }); }
       finally { b.disabled = false; refreshDoubleBtn(); }
     });
 
     document.getElementById('btnAddTime').addEventListener('click', async () => {
-      const b = document.getElementById('btnAddTime'); b.disabled = true;
+      const b = document.getElementById('btnAddTime');
+      if (timeLeft <= 0 || submitting) { modal({ type:'warning', title:'Waktu sudah habis', message:'Waktu pengerjaan sudah habis, tidak bisa menambah waktu.', confirmText:'OK' }); return; }
+      const orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
       try {
-        const r = await api('/api/shop/purchase-effect', { method:'POST', body:{ student_id: me.student_id, item_type:'item_tambah_waktu' }});
-        if (r.data && typeof r.data.poin === 'number') { inventory.poin = r.data.poin; document.getElementById('coinBal').textContent = inventory.poin; }
+        const r = await api('/api/shop/purchase-effect', { method:'POST', body:{ student_id: me.student_id, effect_type:'tambah_waktu', cost: 100 }});
+        if (r.data && typeof r.data.new_poin === 'number') { inventory.poin = r.data.new_poin; document.getElementById('coinBal').textContent = inventory.poin; }
+        // Race: waktu keburu habis / sudah submit saat pembelian → kembalikan koin + kabari.
+        if (submitting || timeLeft <= 0) {
+          try { const rf = await api('/api/student/refund-coins', { method:'POST', body:{ amount: 100 } }); if (rf.data && typeof rf.data.poin === 'number') { inventory.poin = rf.data.poin; document.getElementById('coinBal').textContent = inventory.poin; } } catch (e) {}
+          modal({ type:'info', title:'Koin dikembalikan', message:'Waktu keburu habis saat pembelian, jadi 100 koinmu sudah dikembalikan.', confirmText:'OK' });
+          return;
+        }
         timeLeft += 30; updateTimerUI();
         document.getElementById('lowTime').classList.add('hidden');
         toast('Waktu ditambah +30 detik ⏳', 'success');
-      } catch (ex) { logError('Gagal tambah waktu', ex.message); }
-      finally { b.disabled = false; }
+      } catch (ex) { logError('Gagal tambah waktu', ex.message); modal({ type:'danger', title:'Gagal', message: ex.message || 'Coba lagi ya.', confirmText:'OK' }); }
+      finally { b.disabled = false; b.innerHTML = orig; }
     });
 
     document.getElementById('drawerClose').addEventListener('click', async () => {
@@ -790,7 +829,8 @@ import '../styles/global.css';
         started = false;
         localStorage.removeItem(forfeitKey(curSubject, curWeek)); // selesai → tak ada hangus
         addDone(curSubject, curWeek);                              // kunci tugas (anti ngerjain ulang)
-        activeBrowserRerender?.();                                 // refresh kartu carousel → "Telah dikerjakan"
+        markResponseDone(curSubject, curWeek);                     // response terkait → "sudah mengerjakan tugas … (kapan)"
+        activeBrowserRerender?.();                                 // kalau response lain masih tampil, refresh kartunya
         lockDoneTaskButtons(curSubject, curWeek);                  // kunci tombol di bubble & panel notif
 
         // Simpan selfie login sebagai bukti (image_url di consultations). Non-blocking.
@@ -886,31 +926,46 @@ import '../styles/global.css';
       });
     }
 
-    // Nama murid di subheader
-    if (me?.name) document.getElementById('meNameSub').textContent = `Halo, ${me.name}`;
+    // Nama asisten — default "Kak Aziz", bisa diedit (disimpan di localStorage). Avatar = inisial.
+    const BOT_NAME_KEY = 'siswa_bot_name';
+    const initialsOf = (n) => (n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'KA');
+    const loadBotName = () => {
+      const nm = localStorage.getItem(BOT_NAME_KEY) || 'Kak Aziz';
+      document.getElementById('botName').textContent = nm;
+      document.getElementById('botAvatar').textContent = initialsOf(nm);
+    };
+    loadBotName();
+    document.getElementById('botNameBtn').addEventListener('click', async () => {
+      const cur = localStorage.getItem(BOT_NAME_KEY) || 'Kak Aziz';
+      const name = await modal({ type:'info', title:'Ganti nama asisten', input:true, value: cur, placeholder:'Mis. Kak Aziz', confirmText:'Simpan', cancelText:'Batal' });
+      if (name) { localStorage.setItem(BOT_NAME_KEY, name); loadBotName(); }
+    });
 
-    // Logout
-    document.getElementById('btnLogout').addEventListener('click', async () => {
+    // Menu titik-tiga
+    const menuDropdown = document.getElementById('menuDropdown');
+    document.getElementById('btnMenu').addEventListener('click', (e) => { e.stopPropagation(); menuDropdown.classList.toggle('hidden'); });
+    document.addEventListener('click', () => menuDropdown.classList.add('hidden'));
+    menuDropdown.addEventListener('click', (e) => e.stopPropagation());
+    menuDropdown.querySelector('[data-menu="notif"]').addEventListener('click', () => { menuDropdown.classList.add('hidden'); openNotifPanel(); });
+    menuDropdown.querySelector('[data-menu="clear"]').addEventListener('click', async () => {
+      menuDropdown.classList.add('hidden');
+      if (thread.children.length <= 1) return;
+      const ok = await modal({ type:'warning', title:'Bersihkan chat?', message:'Semua percakapan di layar ini akan dihapus.', confirmText:'Bersihkan', cancelText:'Batal' });
+      if (ok) { thread.innerHTML = ''; showGreeting(); }
+    });
+    menuDropdown.querySelector('[data-menu="logout"]').addEventListener('click', async () => {
+      menuDropdown.classList.add('hidden');
       const ok = await modal({ type:'warning', title:'Keluar dari akun?', message:'Kamu perlu login lagi untuk masuk.', confirmText:'Keluar', cancelText:'Batal' });
       if (ok) logout();
     });
 
-    // Sapaan awal
+    // Sapaan awal (simpel)
     function showGreeting() {
-      botBubble(`Assalamualaikum, <b>${esc(me?.name||'')}</b>! 👋<br>Aku asisten yukNgaji. Mau cek apa hari ini? Pilih tombol di bawah ya.`);
+      botBubble(`Assalamualaikum <b>${esc(me?.name||'')}</b>, ada yang bisa dibantu?`);
     }
     showGreeting();
 
-    // Bersihkan riwayat chat
-    document.getElementById('btnClearChat').addEventListener('click', async () => {
-      if (thread.children.length <= 1) return;
-      const ok = await modal({ type:'warning', title:'Bersihkan chat?', message:'Semua percakapan di layar ini akan dihapus.', confirmText:'Bersihkan', cancelText:'Batal' });
-      if (!ok) return;
-      thread.innerHTML = '';
-      showGreeting();
-    });
-
-    // Notif izin: cek sekarang, lalu tiap 30 detik (push bubble kalau ada yang baru).
+    // Notif izin: cek sekarang, lalu tiap 30 detik.
     pollNotifications();
     setInterval(pollNotifications, 30000);
   </script>

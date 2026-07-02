@@ -18,13 +18,6 @@
       "description": "Lihat semua tugas yang belum dikerjakan",
       "url": "/sistem?act=pending",
       "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
-    },
-    {
-      "name": "Cek tugasku yang telat",
-      "short_name": "Telat",
-      "description": "Lihat tugas yang lewat deadline",
-      "url": "/sistem?act=late",
-      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]
 }

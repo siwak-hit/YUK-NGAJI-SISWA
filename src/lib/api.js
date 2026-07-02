@@ -366,9 +366,7 @@ export function openIzinDrawer({ studentId, name, onClose } = {}) {
       </div>
       <div class="ans-label">Tempel pesan ini ke grup pengajian</div>
       <pre style="white-space:pre-wrap;background:var(--surface-sunken);border-radius:var(--r-md);padding:0.75rem;font-family:var(--font-sans);font-size:13px;color:var(--ink);margin-top:0.4rem">${escHtml(waText(reason))}</pre>
-      <button data-wa class="btn w-full mt-3" style="background:#25D366;color:#fff;"><i class="fa-brands fa-whatsapp"></i> Salin &amp; Buka WhatsApp</button>
-      <button data-close2 class="btn btn-secondary w-full mt-2">Tutup</button>`;
-    body.querySelector('[data-close2]').addEventListener('click', shut);
+      <button data-wa class="btn w-full mt-3" style="background:#25D366;color:#fff;border-radius:var(--r-pill);padding:0.9rem 1.5rem;box-shadow:0 6px 18px rgba(37,211,102,0.3);"><i class="fa-brands fa-whatsapp"></i> Salin &amp; Buka WhatsApp</button>`;
     body.querySelector('[data-wa]').addEventListener('click', () => {
       const text = waText(reason);
       // Copy fire-and-forget (jangan await → jaga user-gesture utk buka scheme di iOS).
@@ -401,8 +399,9 @@ export function openIzinDrawer({ studentId, name, onClose } = {}) {
         toast('Izin terkirim ke Kak Aziz', 'success');
         renderDone(reason, false);
       } catch (ex) {
-        logError('Gagal kirim izin', ex.message);
+        // Sudah izin hari ini = kondisi wajar (bukan error) → tampilkan state "sudah izin".
         if (/sudah mengajukan izin hari ini/i.test(ex.message || '')) { renderDone(reason, true); return; }
+        logError('Gagal kirim izin', ex.message);
         body.querySelectorAll('[data-reason]').forEach(b => b.disabled = false);
         stateEl.innerHTML = `<span style="color:var(--danger)">${escHtml(ex.message || 'Gagal, coba lagi.')}</span>`;
       }
@@ -444,6 +443,9 @@ export function requireNotif() {
             ${mode === 'denied' ? '<button id="ngReload" class="btn btn-secondary w-full mt-2">Muat Ulang Halaman</button>' : ''}
           </div>`;
         const attempt = async () => {
+          const primary = back.querySelector('#ngPrimary');
+          primary.disabled = true;
+          primary.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses…';
           const perm = await Notification.requestPermission();
           if (perm === 'granted') { await subscribePush(reg); back.remove(); resolve(); return; }
           // Masih belum granted. Kalau tadi sudah 'denied' & tetap denied → mentok (reload only).

@@ -38,10 +38,13 @@
 
 * { -webkit-tap-highlight-color: transparent; }
 
-/* Header bar konsisten: permukaan putih + garis bawah hairline */
+/* Garis pembatas struktural (header/main/bottom nav) — lebih kontras dari hairline biasa */
+:root { --divider-strong: #c3c3cc; }
+
+/* Header bar konsisten: permukaan putih + garis bawah kontras */
 .appbar {
   background: var(--canvas);
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--divider-strong);
 }
 
 /* Frame mobile: full di HP, layar-hp di tengah pada desktop */
@@ -240,7 +243,7 @@
 }
 .word-btn.hidden { display: none; }
 .blank-slot.filled { background: var(--accent-soft); color: var(--accent-strong); border-bottom-style: solid; }
-.blank-slot:empty::before { content: "?"; color: var(--ink-tertiary); }
+.blank-slot:empty::before { content: "………"; color: var(--ink-tertiary); letter-spacing: 1px; }
 .ans-slot-box {
   min-height: 3rem; border: 2px dashed var(--hairline-strong); border-radius: var(--r-md);
   background: var(--surface-sunken); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
