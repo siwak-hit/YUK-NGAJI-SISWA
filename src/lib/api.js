@@ -320,9 +320,11 @@ export async function offerPush() {
 
 // ===================== IZIN DRAWER (reusable) =====================
 const escHtml = (s) => (s == null ? '' : String(s)).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-// Bottom-sheet izin: pilih alasan → kirim ke /public/izin. onClose(success) dipanggil saat tutup.
+// Bottom-sheet izin: cek "sudah izin hari ini?" → kalau belum: pilih alasan → kirim.
+// Setelah izin (atau sudah izin) → tombol "Salin & Buka WhatsApp" utk tempel ke grup.
 export function openIzinDrawer({ studentId, name, onClose } = {}) {
   const REASONS = ['Sakit', 'Ada keperluan keluarga', 'Izin tidak masuk', 'Ada acara', 'Lainnya'];
+  const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const back = document.createElement('div');
   back.className = 'sheet-backdrop';
   back.innerHTML = `
@@ -332,41 +334,83 @@ export function openIzinDrawer({ studentId, name, onClose } = {}) {
         <div class="modal-title"><i class="fa-solid fa-hand" style="color:var(--warning)"></i> Izin ke Kak Aziz</div>
         <button data-close class="text-xl active:opacity-70" style="color:var(--ink-tertiary)"><i class="fa-solid fa-xmark"></i></button>
       </div>
+      <div data-body style="margin-top:0.5rem"></div>
+    </div>`;
+  document.body.appendChild(back);
+  void back.offsetWidth;
+  requestAnimationFrame(() => back.classList.add('show'));
+
+  const body = back.querySelector('[data-body]');
+  let submitted = false;
+  const shut = () => { back.classList.remove('show'); setTimeout(() => back.remove(), 340); if (onClose) onClose(submitted); };
+  back.querySelector('[data-close]').addEventListener('click', shut);
+  back.addEventListener('click', (e) => { if (e.target === back) shut(); });
+
+  const waText = (reason) => `Nama : ${name || '-'}\nAlasan : ${reason}\nHari : ${today}`;
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch {
+      try {
+        const ta = document.createElement('textarea'); ta.value = text;
+        ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta);
+        ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok;
+      } catch { return false; }
+    }
+  }
+
+  function renderDone(reason, already) {
+    submitted = true;
+    body.innerHTML = `
+      <div class="text-[14px] mb-2 font-semibold" style="color:${already ? 'var(--ink-secondary)' : '#16a34a'}">
+        <i class="fa-solid fa-circle-check"></i> ${already ? 'Kamu sudah izin hari ini.' : 'Izin terkirim ke Kak Aziz. Terima kasih 🤲'}
+      </div>
+      <div class="ans-label">Tempel pesan ini ke grup pengajian</div>
+      <pre style="white-space:pre-wrap;background:var(--surface-sunken);border-radius:var(--r-md);padding:0.75rem;font-family:var(--font-sans);font-size:13px;color:var(--ink);margin-top:0.4rem">${escHtml(waText(reason))}</pre>
+      <button data-wa class="btn w-full mt-3" style="background:#25D366;color:#fff;"><i class="fa-brands fa-whatsapp"></i> Salin &amp; Buka WhatsApp</button>
+      <button data-close2 class="btn btn-secondary w-full mt-2">Tutup</button>`;
+    body.querySelector('[data-close2]').addEventListener('click', shut);
+    body.querySelector('[data-wa]').addEventListener('click', async () => {
+      const ok = await copyText(waText(reason));
+      toast(ok ? 'Pesan disalin — tempel di grup WA ya' : 'Salin pesannya manual ya', ok ? 'success' : 'info');
+      setTimeout(() => { window.location.href = 'whatsapp://send'; }, 250);
+    });
+  }
+
+  function renderReasons() {
+    submitted = false;
+    body.innerHTML = `
       <div class="modal-msg" style="text-align:left">${name ? ('Untuk <b>' + escHtml(name) + '</b>. ') : ''}Pilih alasan izinmu:</div>
       <div class="flex flex-wrap gap-2" style="margin-top:0.85rem">
         ${REASONS.map(r => `<button class="chip" data-reason="${escHtml(r)}" style="border-color:var(--warning);color:var(--warning)">${escHtml(r)}</button>`).join('')}
       </div>
-      <div data-state class="caption" style="margin-top:0.9rem;min-height:16px;"></div>
-    </div>`;
-  document.body.appendChild(back);
-  // paksa reflow biar transisi translateY jalan
-  void back.offsetWidth;
-  requestAnimationFrame(() => back.classList.add('show'));
+      <div data-state class="caption" style="margin-top:0.9rem;min-height:16px;"></div>`;
+    const stateEl = body.querySelector('[data-state]');
+    body.querySelectorAll('[data-reason]').forEach(btn => btn.addEventListener('click', async () => {
+      let reason = btn.dataset.reason;
+      if (reason === 'Lainnya') {
+        const r = await modal({ type: 'warning', title: 'Alasan lain', input: true, placeholder: 'Tulis alasanmu', confirmText: 'Lanjut', cancelText: 'Batal' });
+        if (!r) return; reason = r;
+      }
+      body.querySelectorAll('[data-reason]').forEach(b => b.disabled = true);
+      stateEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim…';
+      try {
+        await api('/api/student/public/izin', { method: 'POST', body: { student_id: studentId, reason } });
+        toast('Izin terkirim ke Kak Aziz', 'success');
+        renderDone(reason, false);
+      } catch (ex) {
+        logError('Gagal kirim izin', ex.message);
+        if (/sudah mengajukan izin hari ini/i.test(ex.message || '')) { renderDone(reason, true); return; }
+        body.querySelectorAll('[data-reason]').forEach(b => b.disabled = false);
+        stateEl.innerHTML = `<span style="color:var(--danger)">${escHtml(ex.message || 'Gagal, coba lagi.')}</span>`;
+      }
+    }));
+  }
 
-  const stateEl = back.querySelector('[data-state]');
-  const shut = (ok) => { back.classList.remove('show'); setTimeout(() => back.remove(), 340); if (onClose) onClose(!!ok); };
-  back.querySelector('[data-close]').addEventListener('click', () => shut(false));
-  back.addEventListener('click', (e) => { if (e.target === back) shut(false); });
-
-  back.querySelectorAll('[data-reason]').forEach(btn => btn.addEventListener('click', async () => {
-    let reason = btn.dataset.reason;
-    if (reason === 'Lainnya') {
-      const r = await modal({ type: 'warning', title: 'Alasan lain', input: true, placeholder: 'Tulis alasanmu', confirmText: 'Lanjut', cancelText: 'Batal' });
-      if (!r) return; reason = r;
-    }
-    back.querySelectorAll('[data-reason]').forEach(b => b.disabled = true);
-    stateEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim…';
-    try {
-      await api('/api/student/public/izin', { method: 'POST', body: { student_id: studentId, reason } });
-      stateEl.innerHTML = '<span style="color:#16a34a"><i class="fa-solid fa-circle-check"></i> Izin terkirim ke Kak Aziz. Terima kasih 🤲</span>';
-      toast('Izin terkirim ke Kak Aziz', 'success');
-      setTimeout(() => shut(true), 1200);
-    } catch (ex) {
-      logError('Gagal kirim izin', ex.message);
-      back.querySelectorAll('[data-reason]').forEach(b => b.disabled = false);
-      stateEl.innerHTML = `<span style="color:var(--danger)">${escHtml(ex.message || 'Gagal, coba lagi.')}</span>`;
-    }
-  }));
+  // Cek dulu apakah sudah izin hari ini (izin hanya 1x/hari).
+  body.innerHTML = '<div class="caption" style="padding:0.5rem 0"><i class="fa-solid fa-spinner fa-spin"></i> Memuat…</div>';
+  api(`/api/student/public/izin-today?student_id=${encodeURIComponent(studentId || '')}`)
+    .then(r => { if (r.data && r.data.izined) renderDone(r.data.reason || '-', true); else renderReasons(); })
+    .catch(() => renderReasons());
 }
 
 // ===================== NOTIF WAJIB (blocking gate) =====================

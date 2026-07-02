@@ -13,9 +13,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Cek tugas minggu ini",
+      "name": "Cek tugas belum selesai",
       "short_name": "Tugas",
-      "description": "Lihat tugas yang belum dikerjakan",
+      "description": "Lihat semua tugas yang belum dikerjakan",
       "url": "/sistem?act=pending",
       "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
