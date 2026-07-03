@@ -122,7 +122,10 @@ export const isTestMode = () => localStorage.getItem(TEST_MODE_KEY) === '1';
 export function getSelfie() { return localStorage.getItem(SELFIE_KEY); }
 function sessionValid() {
   const at = Number(localStorage.getItem(SESSION_AT_KEY) || 0);
-  return at > 0 && (Date.now() - at) < SESSION_MS && !!localStorage.getItem(SELFIE_KEY);
+  if (!at || !localStorage.getItem(SELFIE_KEY)) return false;
+  // Sesi berakhir kalau GANTI HARI (walau belum 24 jam) → wajib foto ulang (bukan login ulang).
+  const sameDay = new Date(at).toDateString() === new Date().toDateString();
+  return sameDay && (Date.now() - at) < SESSION_MS;
 }
 
 function dataURLtoBlob(d) {
