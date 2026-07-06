@@ -458,7 +458,8 @@ import '../styles/global.css';
     };
 
     const shuffle = (a) => { a = a.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
-    const wrapArabic = (t) => t==null?'':String(t).replace(/\p{Script=Arabic}(?:[\p{Script=Arabic}ـ،؛؟\s]*\p{Script=Arabic})?/gu, m => `<span class="ar-text">${m}</span>`);
+    // Kelas mencakup harakat (\p{Mn}) + tatweel + presentation forms/kurung ornamen agar kata berharakat tidak terpecah per huruf.
+    const wrapArabic = (t) => t==null?'':String(t).replace(/[\p{Script=Arabic}ـﭐ-﷿ﹰ-﻿](?:[\p{Script=Arabic}\p{Mn}ـﭐ-﷿ﹰ-﻿\s،؛؟]*[\p{Script=Arabic}\p{Mn}ﭐ-﷿ﹰ-﻿])?/gu, m => `<span class="ar-text">${m}</span>`);
     const media = (q) => q.image_url ? `<img src="${esc(q.image_url.trim())}" class="w-full max-h-52 object-contain my-2 rounded-xl border border-[var(--hairline)]" alt="">` : '';
 
     const LETTERS = ['A','B','C','D','E','F'];
