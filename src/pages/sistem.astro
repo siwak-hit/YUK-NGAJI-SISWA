@@ -9,13 +9,15 @@ import '../styles/global.css';
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <!-- SortableJS untuk soal tipe 'urutan' (drag mengurutkan) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
   <!-- Confetti untuk rekap nilai -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
   <style>
-    .ar-text { font-family: 'Scheherazade New','Amiri',serif; font-size: 1.25em; direction: rtl; }
+    .ar-text { font-family: 'Scheherazade New','Amiri Quran','Amiri',serif; font-size: 1.9em; line-height: 2; direction: rtl; unicode-bidi: isolate;
+      letter-spacing: normal; word-spacing: normal; font-feature-settings: "liga" 1, "calt" 1, "rlig" 1; }
     .blank-slot { display:inline-block; min-width:64px; height:30px; border-bottom:2px dashed var(--accent); background:var(--accent-soft); margin:0 4px; text-align:center; font-weight:800; color:var(--accent-strong); vertical-align:middle; cursor:pointer; line-height:30px; padding:0 6px; border-radius:6px 6px 0 0; font-size:13px; }
     .sortable-ghost { opacity:.4; }
   </style>
