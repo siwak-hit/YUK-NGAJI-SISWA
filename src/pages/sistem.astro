@@ -24,6 +24,10 @@ import '../styles/global.css';
     .ar-text u, .ar-text [style*="underline"] { text-underline-offset: .22em; text-decoration-thickness: 2px; text-decoration-skip-ink: none; }
     .blank-slot { display:inline-block; min-width:64px; height:30px; border-bottom:2px dashed var(--accent); background:var(--accent-soft); margin:0 4px; text-align:center; font-weight:800; color:var(--accent-strong); vertical-align:middle; cursor:pointer; line-height:30px; padding:0 6px; border-radius:6px 6px 0 0; font-size:13px; }
     .sortable-ghost { opacity:.4; }
+    /* Bottom nav dikunci di dasar layar (tahan address-bar/keyboard mobile), tetap selebar frame HP. */
+    #bottomNav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: 480px; z-index: 40; }
+    /* Ruang bawah thread biar pesan terakhir tak ketutup bottom nav yang kini fixed. */
+    #thread { padding-bottom: 76px; }
   </style>
 </head>
 <body>
@@ -61,8 +65,8 @@ import '../styles/global.css';
     <!-- Thread -->
     <div id="thread" class="flex-1 overflow-y-auto no-scrollbar px-3 py-4 space-y-2" style="background: var(--chat-bg);"></div>
 
-    <!-- Bottom nav (mobile) -->
-    <footer class="bg-white flex shrink-0" style="border-top:1px solid var(--divider-strong);">
+    <!-- Bottom nav (mobile) — fixed di dasar frame HP -->
+    <footer id="bottomNav" class="bg-white flex shrink-0" style="border-top:1px solid var(--divider-strong);">
       <button data-nav="pending" class="flex-1 flex flex-col items-center gap-1 py-2.5 active:bg-[var(--surface-sunken)] transition" style="color: var(--accent-strong);">
         <i class="fa-solid fa-list-check text-lg"></i>
         <span class="text-[11px] font-semibold">Cek tugas belum selesai</span>
@@ -136,7 +140,7 @@ import '../styles/global.css';
   </div>
 
   <script>
-    import { requireAuth, getStudent, api, toast, logError, logWarn, modal, showTyping, ensureSession, getSelfieBlob, logout, requireNotif, openIzinDrawer } from '../lib/api.js';
+    import { requireAuth, getStudent, api, toast, logError, logWarn, modal, showTyping, ensureSession, getSelfie, logout, requireNotif, openIzinDrawer } from '../lib/api.js';
 
     // Shortcut PWA (?act=pending|late): simpan dulu biar selamat kalau harus login/scan wajah.
     const shortcutAct = new URLSearchParams(location.search).get('act');
@@ -841,13 +845,13 @@ import '../styles/global.css';
         activeBrowserRerender?.();                                 // kalau response lain masih tampil, refresh kartunya
         lockDoneTaskButtons(curSubject, curWeek);                  // kunci tombol di bubble & panel notif
 
-        // Simpan selfie login sebagai bukti (image_url di consultations). Non-blocking.
-        const selfie = getSelfieBlob();
+        // Simpan selfie satpam sbg bukti pengerjaan → tabel satpam_logs (yang DIBACA modal notif guru).
+        // Dulu dikirim ke /api/consultations (tabel beda), jadi foto tak muncul di detail notif. Non-blocking.
+        const selfie = getSelfie(); // dataURL dari verifikasi wajah
         if (selfie) {
-          const fd = new FormData();
-          fd.append('student_id', me.student_id); fd.append('subject', curSubject); fd.append('week', String(curWeek));
-          fd.append('image', selfie, 'selfie.jpg');
-          api('/api/consultations', { method: 'POST', body: fd }).catch(ex => logWarn('Gagal simpan foto bukti', ex.message));
+          api('/api/onboarding/upload-satpam', { method: 'POST', body: {
+            student_id: me.student_id, student_name: me.name || '', subject: curSubject, week: curWeek, image: selfie,
+          }}).catch(ex => logWarn('Gagal simpan foto bukti', ex.message));
         }
 
         await showResult(score);
