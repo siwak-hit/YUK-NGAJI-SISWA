@@ -15,7 +15,9 @@ import '../styles/global.css';
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
   <!-- Confetti untuk rekap nilai -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
-  <style>
+  <!-- is:global WAJIB: .ar-text/.blank-slot/.sortable-ghost dipasang ke elemen yang dibuat runtime
+       (innerHTML/SortableJS); kalau scoped (default), selector-nya tak kena elemen tsb. -->
+  <style is:global>
     .ar-text { display: block; text-align: center; margin: .4em 0; font-family: 'Scheherazade New','Amiri Quran','Amiri',serif;
       font-size: clamp(1.8rem, 7vw, 2.6rem); line-height: 1.9; direction: rtl;
       letter-spacing: normal; word-spacing: normal; font-feature-settings: "liga" 1, "calt" 1, "rlig" 1; }
