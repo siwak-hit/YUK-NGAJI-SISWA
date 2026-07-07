@@ -684,7 +684,14 @@ import '../styles/global.css';
       if (reason === null) return true;
       try {
         await api('/api/onboarding/pr-extension-request', { method:'POST', body:{ student_id: me.student_id, subject, week, reason, kind:'late' }});
-        await modal({ type:'info', title:'Izin terkirim', message:'Tunggu persetujuan Kak Aziz ya. Kalau sudah disetujui, kamu dapat notifikasi & langsung bisa mengerjakan.', confirmText:'OK' });
+        // Auto: salin pesan izin + buka WhatsApp ke Kak Aziz biar guru langsung tahu ada yang minta izin.
+        const mapel = SUBJ[subject] || subject;
+        const pesan = `Assalamualaikum kak aziz, Aku ${me.name || 'siswa'}, aku minta izin untuk ngerjain tugas ${mapel} pertemuan ${week} kak, karena alasan ${reason}. mohon diberikan keringanan. Terima kasih.`;
+        try { await navigator.clipboard.writeText(pesan); } catch {}
+        const waUrl = `https://wa.me/6281336889643?text=${encodeURIComponent(pesan)}`;
+        const waWin = window.open(waUrl, '_blank');   // buka WhatsApp dgn pesan siap kirim
+        if (!waWin) window.location.href = waUrl;      // fallback kalau popup diblokir
+        await modal({ type:'info', title:'Izin terkirim ✅', message:'Pesannya sudah <b>disalin</b> & WhatsApp ke Kak Aziz kebuka — tinggal tekan <b>Kirim</b> di WhatsApp ya. Kalau sudah disetujui, kamu dapat notifikasi & langsung bisa mengerjakan.', confirmText:'OK' });
       } catch (ex) { logError('Gagal minta izin', ex.message); modal({ type:'danger', title:'Gagal', message: ex.message || 'Coba lagi ya.', confirmText:'OK' }); }
       return true;
     }
