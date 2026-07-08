@@ -273,6 +273,7 @@ import '../styles/global.css';
         const res = await api('/api/student/tasks');
         await new Promise(r => setTimeout(r, 400)); // jeda kecil biar typing kebaca
         const tasks = res.data || [];
+        pruneStaleDone(tasks); // buang status "done" lokal yg basi sebelum render kartu
         ignoreLastResponse(); // response tugas sebelumnya (kalau ada) ditandai diabaikan
         if (!tasks.length) { botBubble('Semua tugas sudah kamu kerjakan. Keren! 🎉'); return; }
         // Gabung header + carousel dalam SATU container.
@@ -452,10 +453,20 @@ import '../styles/global.css';
     let activeBrowserRerender = null;   // utk refresh kartu carousel setelah tugas selesai
     const forfeitKey = (sub, wk) => `siswa_forfeit_${sub}_${wk}`;
     const doneKey = (sub, wk) => `${sub}|${wk}`;
+    // Key di-scope per student_id: 1 HP dipakai bergantian tak boleh bikin status "sudah dikerjakan"
+    // milik siswa lain bocor ke siswa ini (key lama 'siswa_done' global = penyebab bug itu).
+    const doneLSKey = () => `siswa_done_${me?.student_id || 'anon'}`;
     // map key→timestamp (backward-compat: kalau data lama berupa array, konversi).
-    const getDoneMap = () => { try { const p = JSON.parse(localStorage.getItem('siswa_done') || '{}'); if (Array.isArray(p)) { const m = {}; p.forEach(k => m[k] = Date.now()); return m; } return p || {}; } catch { return {}; } };
-    const addDone = (sub, wk) => { const m = getDoneMap(); m[doneKey(sub, wk)] = Date.now(); localStorage.setItem('siswa_done', JSON.stringify(m)); };
+    const getDoneMap = () => { try { const p = JSON.parse(localStorage.getItem(doneLSKey()) || '{}'); if (Array.isArray(p)) { const m = {}; p.forEach(k => m[k] = Date.now()); return m; } return p || {}; } catch { return {}; } };
+    const addDone = (sub, wk) => { const m = getDoneMap(); m[doneKey(sub, wk)] = Date.now(); localStorage.setItem(doneLSKey(), JSON.stringify(m)); };
     const isDone = (sub, wk) => getDoneMap()[doneKey(sub, wk)] != null;
+    // Backend = sumber kebenaran. Kalau tugas MASIH di daftar "belum selesai", buang penanda
+    // "done" lokal yang basi (device dipakai bergantian / guru buka ulang tugas) → self-healing.
+    const pruneStaleDone = (tasks) => {
+      const m = getDoneMap(); let changed = false;
+      (tasks || []).forEach(t => { const k = doneKey(t.subject, t.week); if (m[k] != null) { delete m[k]; changed = true; } });
+      if (changed) localStorage.setItem(doneLSKey(), JSON.stringify(m));
+    };
     const doneWhen = (sub, wk) => {
       const ts = getDoneMap()[doneKey(sub, wk)]; if (!ts) return '';
       const d = new Date(ts), now = new Date();
