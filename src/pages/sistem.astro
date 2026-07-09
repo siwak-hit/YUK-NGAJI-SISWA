@@ -628,6 +628,9 @@ import '../styles/global.css';
       document.getElementById('qCounter').textContent = `${curIdx + 1}/${arr.length}`;
       document.getElementById('btnPrev').disabled = curIdx === 0;
       const next = document.getElementById('btnNext');
+      // Pastikan tombol aktif tiap kali soal ditampilkan. Tanpa ini, sisa disabled dari submit
+      // tugas SEBELUMNYA (jalur sukses tak reset) bikin tombol mati di soal 1 tugas berikutnya.
+      next.disabled = false;
       if (last) next.innerHTML = (isEvaluatingExtraLife ? '<i class="fa-solid fa-paper-plane"></i> Kirim Final' : '<i class="fa-solid fa-paper-plane"></i> Kumpulkan');
       else next.innerHTML = 'Selanjutnya <i class="fa-solid fa-chevron-right"></i>';
       qList.scrollTop = 0;
