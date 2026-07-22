@@ -405,6 +405,76 @@ async function openChallenge() {
   }
 }
 
+// ===================== PASSWORD (ganti / reset) =====================
+function openPasswordPanel(me) {
+  const { body } = fullOverlay('Password 🔑', 'Ganti atau atur ulang password');
+  body.innerHTML = `
+    <div class="flex gap-2 p-1 rounded-[var(--r-lg)] mb-4" style="background:var(--surface-sunken)">
+      <button data-tab="ganti" class="flex-1 py-2 rounded-[var(--r-md)] text-[13px] font-bold transition" style="background:var(--accent);color:var(--on-accent)">Ganti Password</button>
+      <button data-tab="reset" class="flex-1 py-2 rounded-[var(--r-md)] text-[13px] font-bold transition" style="color:var(--ink-secondary)">Reset Password</button>
+    </div>
+    <div data-sec="ganti">
+      <label class="caption block mb-1">Password Lama</label>
+      <input id="mnPwOld" type="password" class="field w-full mb-3" placeholder="••••••••" autocomplete="current-password">
+      <label class="caption block mb-1">Password Baru</label>
+      <input id="mnPwNew" type="password" class="field w-full mb-4" placeholder="Min. 6 karakter" autocomplete="new-password">
+      <button id="mnPwSubmit" class="btn btn-primary w-full !py-3"><i class="fa-solid fa-floppy-disk"></i> Simpan Password</button>
+    </div>
+    <div data-sec="reset" style="display:none">
+      <div class="rounded-[var(--r-lg)] p-4 mb-4" style="background:var(--warning-soft)">
+        <div class="text-[13px] font-semibold" style="color:var(--warning)">Pesan permintaan reset password akan disalin otomatis. Teruskan ke Kak Aziz lewat WhatsApp untuk diproses.</div>
+      </div>
+      <button id="mnPwReset" class="btn w-full !py-3" style="background:#25D366;color:#fff;border-radius:var(--r-pill)"><i class="fa-brands fa-whatsapp"></i> Salin Pesan &amp; Buka WA</button>
+    </div>`;
+
+  const tabs = body.querySelectorAll('[data-tab]');
+  const secGanti = body.querySelector('[data-sec="ganti"]');
+  const secReset = body.querySelector('[data-sec="reset"]');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    const isGanti = t.dataset.tab === 'ganti';
+    tabs.forEach(x => {
+      const active = x === t;
+      x.style.background = active ? 'var(--accent)' : 'transparent';
+      x.style.color = active ? 'var(--on-accent)' : 'var(--ink-secondary)';
+    });
+    secGanti.style.display = isGanti ? '' : 'none';
+    secReset.style.display = isGanti ? 'none' : '';
+  }));
+
+  body.querySelector('#mnPwSubmit').addEventListener('click', async () => {
+    const oldPassword = body.querySelector('#mnPwOld').value.trim();
+    const newPassword = body.querySelector('#mnPwNew').value.trim();
+    if (!oldPassword || !newPassword) {
+      return modal({ type: 'warning', title: 'Lengkapi dulu', message: 'Password lama dan baru wajib diisi ya.', confirmText: 'OK' });
+    }
+    if (newPassword.length < 6) {
+      return modal({ type: 'warning', title: 'Terlalu pendek', message: 'Password baru minimal 6 karakter.', confirmText: 'OK' });
+    }
+    const btn = body.querySelector('#mnPwSubmit');
+    const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan…';
+    try {
+      await api('/api/student/change-password', { method: 'POST', body: { oldPassword, newPassword } });
+      toast('Password berhasil diubah 🎉', 'success');
+      body.querySelector('#mnPwOld').value = '';
+      body.querySelector('#mnPwNew').value = '';
+    } catch (e) {
+      logError('Gagal ganti password', e.message);
+      modal({ type: 'danger', title: 'Gagal', message: e.message || 'Password lama mungkin salah.', confirmText: 'OK' });
+    } finally {
+      btn.disabled = false; btn.innerHTML = old;
+    }
+  });
+
+  body.querySelector('#mnPwReset').addEventListener('click', async () => {
+    const nama = me?.name || 'saya';
+    const msg = `Assalamu'alaikum Kak Aziz, saya *${nama}* ingin meminta reset password akun ngaji saya. Terima kasih 🙏`;
+    try { await api('/api/student/forgot-password-request', { method: 'POST', body: {} }); } catch {}
+    try { navigator.clipboard.writeText(msg); } catch {}
+    toast('Pesan disalin — teruskan ke Kak Aziz di WhatsApp', 'success');
+    window.location.href = 'whatsapp://send?text=' + encodeURIComponent(msg);
+  });
+}
+
 // ===================== TOKO (beli item: foto & video) =====================
 // Katalog = subset foto+video dari toko-kenangan (tanpa gacha/scratch/gift).
 // filename = kunci beli/owned; url = path media di FRONTEND (SHOP_ORIGIN + url).
