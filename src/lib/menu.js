@@ -43,6 +43,7 @@ export function openMenuDrawer(me) {
     { key: 'nilai',     ic: 'fa-table-list',    color: '#0ea5e9',        label: 'Nilaiku',    desc: 'Nilai tiap tugas' },
     { key: 'challenge', ic: 'fa-bolt',          color: '#f59e0b',        label: 'Challenge',  desc: 'Adu cepat ketik, kumpulkan koin' },
     { key: 'toko',      ic: 'fa-store',         color: '#16a34a',        label: 'Toko',       desc: 'Tukar koin dengan kenangan' },
+    { key: 'password',  ic: 'fa-key',           color: '#64748b',        label: 'Password',   desc: 'Ganti atau atur ulang password' },
   ];
   const back = document.createElement('div');
   back.className = 'sheet-backdrop';
@@ -81,6 +82,7 @@ function openPanel(key, me) {
   if (key === 'nilai') return openNilai(me);
   if (key === 'challenge') return openChallenge(me);
   if (key === 'toko') return openToko(me);
+  if (key === 'password') return openPasswordPanel(me);
 }
 
 // ===================== HAFALAN =====================
