@@ -188,7 +188,11 @@ export function ensureSession() {
       localStorage.setItem(SESSION_AT_KEY, String(Date.now()));
       if (loopId) clearTimeout(loopId);
       if (stream) stream.getTracks().forEach(t => t.stop());
-      back.remove(); resolve();
+      back.remove();
+      // Satpam baru saja tampil → sekalian pastikan push notif aktif.
+      // requireNotif sudah cek dulu: kalau sudah granted + subscribed → resolve diam-diam,
+      // kalau belum → tampilkan gate "Izinkan Notifikasi".
+      requireNotif().then(resolve);
     };
 
     const capture = () => {
