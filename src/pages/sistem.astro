@@ -210,10 +210,11 @@ import '../styles/global.css';
       }
     }
     // Setelah tugas dikerjakan: kalau tugas itu bagian dari response terakhir → ganti jadi info "sudah mengerjakan".
-    function markResponseDone(sub, wk) {
+    function markResponseDone(sub, wk, label) {
       if (!lastResponseEl || !lastResponseActive || !lastResponseTasks || !lastResponseTasks.has(doneKey(sub, wk))) return;
       const bub = lastResponseEl.querySelector('.bubble');
-      if (bub) bub.innerHTML = `<div class="text-[13px]" style="color:var(--ink-secondary)"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Kamu sudah mengerjakan tugas <b style="color:var(--ink)">${SUBJ[sub]||sub} · Pertemuan ${wk}</b> ${doneWhen(sub, wk)}.</div>`;
+      const nama = label || `${SUBJ[sub]||sub} · Pertemuan ${wk}`;
+      if (bub) bub.innerHTML = `<div class="text-[13px]" style="color:var(--ink-secondary)"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Kamu sudah mengerjakan tugas <b style="color:var(--ink)">${esc(nama)}</b> ${doneWhen(sub, wk)}.</div>`;
       lastResponseActive = false; activeBrowserRerender = null; lastResponseTasks = null;
     }
     function userBubble(text) {
@@ -233,7 +234,9 @@ import '../styles/global.css';
 
     // ---- Carousel tugas: 1 kartu (M{week} + mapel + alasan telat + aksi), prev/next ----
     function taskBrowser(allTasks) {
-      const tasks = allTasks.slice().sort((a,b) => (a.week-b.week) || String(a.subject).localeCompare(b.subject));
+      // Ujian (tanpa week) ditaruh paling belakang.
+      const wk = (t) => t.kind === 'exam' ? Infinity : t.week;
+      const tasks = allTasks.slice().sort((a,b) => (wk(a)-wk(b)) || String(a.subject).localeCompare(b.subject));
       let idx = 0;
       const wrap = document.createElement('div');
       wrap.style.width = '290px'; wrap.style.maxWidth = '100%';
@@ -241,22 +244,26 @@ import '../styles/global.css';
       function render() {
         if (idx >= tasks.length) idx = Math.max(0, tasks.length-1);
         const t = tasks[idx];
-        const done = isDone(t.subject, t.week);
+        const isExam = t.kind === 'exam';
+        const [kSub, kWk] = taskKey(t);
+        const done = isDone(kSub, kWk);
         // Kalau sudah dapat izin aktif → tidak dianggap "telat" lagi (siap dikerjakan, biru).
-        const late = t.late && !done && !grantedSet.has(doneKey(t.subject, t.week));
+        const late = t.late && !done && !grantedSet.has(doneKey(kSub, kWk));
         const col = done ? '#16a34a' : late ? '#e5484d' : '#0066cc';
+        const doLabel = late ? (isExam ? 'Minta Perpanjangan' : 'Minta Izin & Kerjakan') : 'Kerjakan Sekarang';
         const actBtn = done
           ? `<div class="task-done"><i class="fa-solid fa-circle-check" style="color:#16a34a"></i> Telah dikerjakan</div>`
-          : `<button data-do class="btn ${late?'btn-warning':'btn-primary'} w-full mt-3 !py-2.5 text-[14px]">${late ? 'Minta Izin & Kerjakan' : 'Kerjakan Sekarang'}</button>`;
+          : `<button data-do class="btn ${late?'btn-warning':'btn-primary'} w-full mt-3 !py-2.5 text-[14px]">${doLabel}</button>`;
         const lateNote = late
-          ? `<div class="text-[12px] mt-1.5 font-semibold" style="color:#e5484d"><i class="fa-solid fa-triangle-exclamation"></i> Lewat deadline — minta izin dulu ke Kak Aziz</div>` : '';
+          ? `<div class="text-[12px] mt-1.5 font-semibold" style="color:#e5484d"><i class="fa-solid fa-triangle-exclamation"></i> Lewat deadline — minta ${isExam?'perpanjangan':'izin'} dulu ke Kak Aziz</div>` : '';
         wrap.innerHTML = `
           <div class="task-card ${late?'status-telat':(done?'status-belum':'')} p-4">
             <div class="flex items-center justify-between mb-2">
-              <span class="badge" style="background:${col}1a;color:${col};font-size:0.78rem;font-weight:800;">M${t.week}</span>
+              <span class="badge" style="background:${col}1a;color:${col};font-size:0.78rem;font-weight:800;">${isExam ? 'UJIAN' : 'M'+t.week}</span>
               <span class="text-[11px] font-bold" style="color:var(--ink-tertiary)">${idx+1}/${tasks.length}</span>
             </div>
-            <div class="text-[19px] font-bold" style="color:var(--ink);letter-spacing:var(--tracking-tight);">${SUBJ[t.subject]||t.subject}</div>
+            <div class="text-[19px] font-bold" style="color:var(--ink);letter-spacing:var(--tracking-tight);">${esc(isExam ? t.title : (SUBJ[t.subject]||t.subject))}</div>
+            ${isExam ? `<div class="text-[12px] mt-0.5" style="color:var(--ink-secondary)">${SUBJ[t.subject]||t.subject} · ${t.duration_minutes} menit</div>` : ''}
             ${lateNote}
             ${actBtn}
           </div>
@@ -267,7 +274,8 @@ import '../styles/global.css';
           </div>`;
         wrap.querySelector('[data-nav="prev"]').addEventListener('click', () => { if(idx>0){idx--;render();} });
         wrap.querySelector('[data-nav="next"]').addEventListener('click', () => { if(idx<tasks.length-1){idx++;render();} });
-        const doBtn = wrap.querySelector('[data-do]'); if (doBtn) doBtn.addEventListener('click', () => openDrawerBtn(doBtn, t.subject, t.week));
+        const doBtn = wrap.querySelector('[data-do]');
+        if (doBtn) doBtn.addEventListener('click', () => isExam ? withBtnSpinner(doBtn, () => openExamDrawer(t)) : openDrawerBtn(doBtn, t.subject, t.week));
       }
       render();
       activeBrowserRerender = render;
@@ -294,7 +302,7 @@ import '../styles/global.css';
         wrap.appendChild(taskBrowser(tasks));
         lastResponseEl = botNode(wrap);
         lastResponseActive = true;
-        lastResponseTasks = new Set(tasks.map(t => doneKey(t.subject, t.week)));
+        lastResponseTasks = new Set(tasks.map(t => doneKey(...taskKey(t))));
       } catch (ex) {
         logError('Gagal memuat data', ex.message);
         botBubble('Maaf, gagal memuat data. Coba lagi sebentar ya.');
@@ -453,6 +461,7 @@ import '../styles/global.css';
     const qList = document.getElementById('qList');
     let questions = [];
     let curSubject = null, curWeek = null;
+    let curExam = null;                 // != null → drawer lagi mode UJIAN (bukan PR)
     let inventory = { poin: 0, item_double_score: 0, item_extra_life: 0 };
     let isDoubleActive = false;
     let isEvaluatingExtraLife = false;
@@ -461,6 +470,8 @@ import '../styles/global.css';
     let activeBrowserRerender = null;   // utk refresh kartu carousel setelah tugas selesai
     const forfeitKey = (sub, wk) => `siswa_forfeit_${sub}_${wk}`;
     const doneKey = (sub, wk) => `${sub}|${wk}`;
+    // Ujian ikut numpang key yang sama: subject='exam', week=exam_id.
+    const taskKey = (t) => t.kind === 'exam' ? ['exam', t.exam_id] : [t.subject, t.week];
     // Key di-scope per student_id: 1 HP dipakai bergantian tak boleh bikin status "sudah dikerjakan"
     // milik siswa lain bocor ke siswa ini (key lama 'siswa_done' global = penyebab bug itu).
     const doneLSKey = () => `siswa_done_${me?.student_id || 'anon'}`;
@@ -472,7 +483,7 @@ import '../styles/global.css';
     // "done" lokal yang basi (device dipakai bergantian / guru buka ulang tugas) → self-healing.
     const pruneStaleDone = (tasks) => {
       const m = getDoneMap(); let changed = false;
-      (tasks || []).forEach(t => { const k = doneKey(t.subject, t.week); if (m[k] != null) { delete m[k]; changed = true; } });
+      (tasks || []).forEach(t => { const k = doneKey(...taskKey(t)); if (m[k] != null) { delete m[k]; changed = true; } });
       if (changed) localStorage.setItem(doneLSKey(), JSON.stringify(m));
     };
     const doneWhen = (sub, wk) => {
@@ -521,6 +532,15 @@ import '../styles/global.css';
           <div class="wordbank"><div class="flex flex-wrap gap-2">${opts.map(([k,v]) => `<button type="button" class="word-btn" data-key="${k}" onclick="window._fillBlank('${q.id}',this)">${wrapArabic(v)}</button>`).join('')}</div></div>
           <input type="hidden" id="ans-${q.id}" value=""></div>`;
       }
+      // isian berurut (soal ujian tipe fill_in_blanks): 1 kolom teks per kunci jawaban
+      if (q.type === 'isian') {
+        const n = q.blank_count || 1;
+        const inputs = Array.from({ length: n }, (_, i) =>
+          `<input type="text" class="field field-sunken text-[14px]" data-blank="${i}" placeholder="Jawaban ${i+1}" autocomplete="off">`).join('');
+        return `<div class="q-card q-slide question-block" data-id="${q.id}" data-type="isian">${head}${media(q)}
+          <div class="ans-label">Isi jawabanmu (urut)</div>
+          <div class="grid gap-2">${inputs}</div></div>`;
+      }
       // pilgan
       const opts = shuffle(Object.entries(q.options));
       return `<div class="q-card q-slide question-block" data-id="${q.id}" data-type="pilgan">${head}${media(q)}
@@ -547,15 +567,16 @@ import '../styles/global.css';
     };
 
     // Bungkus openDrawer dgn spinner di tombol (cegah spam & kasih feedback saat cek deadline/izin).
-    async function openDrawerBtn(btn, subject, week) {
-      if (!btn) return openDrawer(subject, week);
+    async function withBtnSpinner(btn, fn) {
+      if (!btn) return fn();
       if (btn.disabled) return;
       const orig = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memuat…';
-      try { await openDrawer(subject, week); }
+      try { await fn(); }
       finally { btn.disabled = false; btn.innerHTML = orig; }
     }
+    const openDrawerBtn = (btn, subject, week) => withBtnSpinner(btn, () => openDrawer(subject, week));
 
     async function openDrawer(subject, week) {
       // Gate: tugas yang sudah dikerjakan tidak bisa diulang.
@@ -571,7 +592,7 @@ import '../styles/global.css';
       // Gate: kalau sudah LEWAT DEADLINE & belum dapat izin yang aktif → wajib minta izin dulu.
       if (await lateGateBlocked(subject, week)) return;
 
-      curSubject = subject; curWeek = week;
+      curSubject = subject; curWeek = week; curExam = null;
       isDoubleActive = false; isEvaluatingExtraLife = false; submitting = false; started = false; curIdx = 0;
       document.getElementById('drawerTitle').textContent = `${SUBJ[subject]||subject} · Pertemuan ${week}`;
       document.getElementById('drawerTimer').textContent = '--:--';
@@ -614,6 +635,81 @@ import '../styles/global.css';
         lobby.classList.add('hidden');
         qList.innerHTML = `<p class="caption text-center py-8">Gagal memuat soal. Coba lagi ya.</p>`;
       }
+    }
+
+    // ---- UJIAN: drawer yang sama, sumber soal & submit-nya saja yang beda ----
+    // Soal ujian datang tanpa kunci jawaban (endpoint /play), jadi Extra Life & Double Nilai
+    // (dua-duanya butuh koreksi/skoring PR) tidak dipakai di mode ujian.
+    const mapExamQ = (q) => {
+      let opts = q.options;
+      try { while (typeof opts === 'string') opts = JSON.parse(opts); } catch { opts = {}; }
+      if (q.question_type === 'fill_in_blanks') {
+        return { id: q.id, type: 'isian', question: q.question, blank_count: q.blank_count || 1, image_url: q.image_url };
+      }
+      const clean = {};
+      Object.entries(opts || {}).forEach(([k, v]) => { if (String(v || '').trim()) clean[k] = v; });
+      return { id: q.id, type: 'pilgan', question: q.question, options: clean, image_url: q.image_url };
+    };
+
+    async function openExamDrawer(t) {
+      if (isDone('exam', t.exam_id)) {
+        await modal({ type:'info', title:'Sudah dikerjakan', message:'Ujian ini sudah kamu kumpulkan. 🎉', confirmText:'OK' });
+        activeBrowserRerender?.();
+        return;
+      }
+      // Telat & belum diperpanjang → server pasti menolak, jadi hentikan di sini + arahkan minta perpanjangan.
+      if (t.late) { await askExamExtension(t); return; }
+
+      curExam = t; curSubject = t.subject; curWeek = null;
+      isDoubleActive = false; isEvaluatingExtraLife = false; submitting = false; started = false; curIdx = 0;
+      document.getElementById('drawerTitle').textContent = t.title;
+      document.getElementById('drawerTimer').textContent = '--:--';
+      qList.innerHTML = '<p class="text-center text-[var(--ink-secondary)] py-8">Memuat soal…</p>';
+      const lobby = document.getElementById('lobby');
+      lobby.classList.remove('hidden');
+      document.getElementById('drawerFooter').classList.add('hidden');
+      document.getElementById('lowTime').classList.add('hidden');
+      document.getElementById('btnDouble').style.display = 'none';
+      drawer.classList.remove('hidden'); drawer.style.display = 'flex';
+
+      try {
+        const [eRes, sRes] = await Promise.all([
+          api(`/api/exams/play/${t.exam_id}`),
+          api('/api/student/me').catch(() => ({ data: {} })),
+        ]);
+        questions = shuffle(eRes.data?.questions || []).map(mapExamQ);
+        const s = sRes.data || {};
+        inventory = { poin: s.poin||0, item_double_score: s.item_double_score||0, item_extra_life: 0 };
+        document.getElementById('coinBal').textContent = inventory.poin;
+
+        if (!questions.length) {
+          lobby.classList.add('hidden');
+          qList.innerHTML = '<p class="text-center text-[var(--ink-secondary)] py-8">Ujian ini belum ada soalnya.</p>';
+          return;
+        }
+        qList.innerHTML = questions.map(renderQ).join('');
+        totalDuration = (eRes.data?.duration_minutes || t.duration_minutes || 60) * 60;
+        timeLeft = totalDuration;
+        document.getElementById('lobbySub').textContent = `${questions.length} soal · waktu ${Math.round(totalDuration/60)} menit`;
+      } catch (ex) {
+        logError('Gagal memuat ujian', ex.message);
+        lobby.classList.add('hidden');
+        qList.innerHTML = `<p class="caption text-center py-8">${esc(ex.message || 'Gagal memuat ujian.')}</p>`;
+      }
+    }
+
+    // Perpanjangan ujian di-ACC guru lewat menu /exams (bukan alur izin PR), jadi di sini
+    // cukup siapkan pesan WA-nya biar Kak Aziz tahu.
+    async function askExamExtension(t) {
+      const ok = await modal({ type:'warning', title:'Ujian sudah lewat batas',
+        message:`Ujian <b>${esc(t.title)}</b> sudah lewat batas waktu. Minta perpanjangan ke Kak Aziz dulu ya.`,
+        confirmText:'Kirim Pesan ke Kak Aziz', cancelText:'Nanti' });
+      if (!ok) return;
+      const pesan = `Assalamualaikum kak aziz, Aku ${me.name || 'siswa'}, aku minta perpanjangan waktu untuk ujian ${t.title} kak, karena aku belum sempat mengerjakan. Terima kasih.`;
+      try { await navigator.clipboard.writeText(pesan); } catch {}
+      const waUrl = `https://wa.me/6281336889643?text=${encodeURIComponent(pesan)}`;
+      const w = window.open(waUrl, '_blank');
+      if (!w) window.location.href = waUrl;
     }
 
     document.getElementById('btnStart').addEventListener('click', () => {
@@ -794,14 +890,17 @@ import '../styles/global.css';
     });
 
     document.getElementById('drawerClose').addEventListener('click', async () => {
-      const warnMsg = started
-        ? 'Kalau keluar sekarang, <b>waktumu hangus</b> dan kamu harus minta tambahan waktu ke Kak Aziz untuk lanjut. Yakin keluar?'
-        : 'Keluar dari halaman soal?';
+      const warnMsg = !started ? 'Keluar dari halaman soal?'
+        : curExam
+          ? 'Kalau keluar sekarang, jawabanmu <b>tidak tersimpan</b> dan waktunya mulai dari awal lagi. Yakin keluar?'
+          : 'Kalau keluar sekarang, <b>waktumu hangus</b> dan kamu harus minta tambahan waktu ke Kak Aziz untuk lanjut. Yakin keluar?';
       const ok = await modal({ type:'warning', title:'Keluar dari soal?', message: warnMsg, confirmText:'Ya, keluar', cancelText:'Lanjut kerjakan' });
       if (!ok) return;
       // Keluar SETELAH mulai = hangus → tandai forfeit (timer hangus, perlu izin tambahan waktu).
-      if (started && !submitting) localStorage.setItem(forfeitKey(curSubject, curWeek), String(Date.now()));
-      started = false;
+      // ponytail: khusus PR. Ujian belum punya alur "minta tambahan waktu", jadi tak ditandai
+      // hangus — kalau perlu, guru tinggal pakai perpanjangan ujian di /exams.
+      if (started && !submitting && !curExam) localStorage.setItem(forfeitKey(curSubject, curWeek), String(Date.now()));
+      started = false; curExam = null;
       clearInterval(timerId); drawer.classList.add('hidden'); drawer.style.display = 'none';
     });
 
@@ -811,6 +910,7 @@ import '../styles/global.css';
         const qId = block.dataset.id, type = block.dataset.type;
         let val;
         if (type === 'drag') val = block.querySelector(`#ans-${qId}`).value;
+        else if (type === 'isian') val = Array.from(block.querySelectorAll('[data-blank]')).map(i => i.value.trim());
         else if (type === 'urutan') val = JSON.parse(block.querySelector('input[type=hidden]').value || '[]');
         else val = block.querySelector(`input[name="q-${qId}"]:checked`)?.value || '';
         answers.push({ question_id: qId, answer: val });
@@ -832,9 +932,35 @@ import '../styles/global.css';
       return wrong;
     }
 
+    async function doSubmitExam(answers) {
+      submitting = true; clearInterval(timerId);
+      const btn = document.getElementById('btnNext');
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim…';
+      const exam = curExam;
+      try {
+        const selfie = getSelfie();
+        const res = await api(`/api/exams/${exam.exam_id}/submit`, { method:'POST', body:{
+          student_id: me.student_id, subject: exam.subject, student_answers: answers,
+          ...(selfie ? { capture_base64: selfie } : {}),
+        }});
+        const score = (typeof res.score === 'number') ? res.score : (res.data?.score ?? 0);
+        started = false;
+        addDone('exam', exam.exam_id);
+        markResponseDone('exam', exam.exam_id, exam.title);
+        activeBrowserRerender?.();
+        lockDoneTaskButtons('exam', exam.exam_id);
+        await showResult(score);
+      } catch (ex) {
+        submitting = false; btn.disabled = false; showSlide(curIdx);
+        logError('Gagal mengumpulkan ujian', ex.message);
+        modal({ type:'danger', title:'Gagal mengumpulkan', message: ex.message || 'Coba lagi ya.', confirmText:'OK' });
+      }
+    }
+
     async function doSubmit(forced) {
       if (submitting) return;
       const answers = collectAnswers();
+      if (curExam) return doSubmitExam(answers);
 
       // Tawarkan Extra Life: hanya kalau punya item, belum dipakai, ada yg salah, dan belum forced(habis waktu).
       if (!forced && !isEvaluatingExtraLife && inventory.item_extra_life > 0) {
@@ -914,6 +1040,8 @@ import '../styles/global.css';
 
     async function showResult(score) {
       fireConfetti();
+      const exam = curExam;   // dibaca lagi di handler tutup (curExam bisa berubah nanti)
+      const judul = exam ? esc(exam.title) : `${SUBJ[curSubject]||curSubject} · Pertemuan ${curWeek}`;
       const emoji = score >= 80 ? '🌟' : score >= 60 ? '👍' : '💪';
       const msg = score >= 80 ? 'Masya Allah, keren banget!' : score >= 60 ? 'Bagus, terus semangat!' : 'Jangan menyerah, coba lagi ya!';
       const back = document.createElement('div');
@@ -921,24 +1049,24 @@ import '../styles/global.css';
       back.innerHTML = `
         <div class="modal-box" style="max-width:340px;">
           <div class="text-5xl mb-1">${emoji}</div>
-          <div class="modal-title">Tugas Selesai!</div>
-          <div class="caption">${SUBJ[curSubject]||curSubject} · Pertemuan ${curWeek}</div>
+          <div class="modal-title">${exam ? 'Ujian Selesai!' : 'Tugas Selesai!'}</div>
+          <div class="caption">${judul}</div>
           <div class="my-3">
             <div class="text-[56px] font-black leading-none" style="color:var(--accent);">${score}</div>
             <div class="caption">nilai kamu</div>
           </div>
           <div class="caption mb-3">${msg}</div>
-          <div id="lbBox" class="text-left">
+          ${exam ? '' : `<div id="lbBox" class="text-left">
             <div class="field-label" style="margin-bottom:0.5rem;">Papan Peringkat</div>
             <div id="lbList" class="caption text-center py-3">Memuat…</div>
-          </div>
+          </div>`}
           <button id="btnResultClose" class="btn btn-primary w-full mt-3">Selesai</button>
         </div>`;
       document.body.appendChild(back);
       requestAnimationFrame(() => back.classList.add('show'));
 
-      // Leaderboard singkat (top 5 + sorot diri sendiri)
-      try {
+      // Leaderboard singkat (top 5 + sorot diri sendiri) — khusus PR.
+      if (!exam) try {
         const lb = await api(`/api/onboarding/leaderboard-pr?subject=${curSubject}&week=${curWeek}`);
         const rows = lb.data || [];
         const top = rows.slice(0, 5);
@@ -962,8 +1090,9 @@ import '../styles/global.css';
         back.classList.remove('show'); setTimeout(() => back.remove(), 220);
         document.getElementById('confettiCanvas')?.remove();
         drawer.classList.add('hidden'); drawer.style.display = 'none';
-        toast(`Tugas terkumpul! Nilai ${score}`, 'success');
-        botBubble(`✅ <b>${SUBJ[curSubject]||curSubject} Pertemuan ${curWeek}</b> berhasil dikumpulkan!<br>Nilai kamu: <b>${score}</b>. Barakallah 🤲`);
+        curExam = null;
+        toast(`${exam ? 'Ujian' : 'Tugas'} terkumpul! Nilai ${score}`, 'success');
+        botBubble(`✅ <b>${judul}</b> berhasil dikumpulkan!<br>Nilai kamu: <b>${score}</b>. Barakallah 🤲`);
       });
     }
 
